@@ -51,11 +51,16 @@ package com.caucho.hessian.io;
 import java.io.IOException;
 import java.io.InputStream;
 
+import java.util.logging.*;
+
 /**
- * Output stream for Hessian 2 streaming requests.
+ * Input stream for Hessian 2 streaming requests using WebSocket.
  */
 public class Hessian2StreamingInput
 {
+  private static final Logger log
+    = Logger.getLogger(Hessian2StreamingInput.class.getName());
+  
   private StreamingInputStream _is;
   private Hessian2Input _in;
   
@@ -71,11 +76,26 @@ public class Hessian2StreamingInput
     _in = new Hessian2Input(_is);
   }
 
+  public void setSerializerFactory(SerializerFactory factory)
+  {
+    _in.setSerializerFactory(factory);
+  }
+
+  public boolean isDataAvailable()
+  {
+    StreamingInputStream is = _is;
+    
+    return is != null && is.isDataAvailable();
+  }
+
   public Hessian2Input startPacket()
     throws IOException
   {
-    if (_is.startPacket())
+    if (_is.startPacket()) {
+      _in.resetReferences();
+      _in.resetBuffer(); // XXX:
       return _in;
+    }
     else
       return null;
   }
@@ -84,6 +104,7 @@ public class Hessian2StreamingInput
     throws IOException
   {
     _is.endPacket();
+    _in.resetBuffer(); // XXX:
   }
 
   public Hessian2Input getHessianInput()
@@ -126,6 +147,17 @@ public class Hessian2StreamingInput
       _is = is;
     }
 
+    public boolean isDataAvailable()
+    {
+      try {
+	return _is != null && _is.available() > 0;
+      } catch (IOException e) {
+	log.log(Level.FINER, e.toString(), e);
+	
+	return true;
+      }
+    }
+
     public boolean startPacket()
       throws IOException
     {
@@ -146,14 +178,15 @@ public class Hessian2StreamingInput
 
 	if (_length > 0)
 	  _is.skip(_length);
-        else
-          return;
       }
     }
 
     public int read()
       throws IOException
     {
+      if (_isPacketEnd)
+	throw new IllegalStateException();
+      
       InputStream is = _is;
       
       if (_length == 0) {
@@ -164,12 +197,16 @@ public class Hessian2StreamingInput
       }
 
       _length--;
+      
       return is.read();
     }
 
     public int read(byte []buffer, int offset, int length)
       throws IOException
     {
+      if (_isPacketEnd)
+	throw new IllegalStateException();
+      
       InputStream is = _is;
       
       if (_length <= 0) {
@@ -201,15 +238,32 @@ public class Hessian2StreamingInput
       
       int length = 0;
 	
-      int code;
+      int code = is.read();
+
+      if (code < 0) {
+        _isPacketEnd = true;
+        return -1;
+      }
+      else if ((code & 0x80) != 0x80) {
+	int len = 256;
+	StringBuilder sb = new StringBuilder();
+	int ch;
+	
+	while ((len-- > 0 && is.available() > 0 && (ch = is.read()) >= 0))
+	  sb.append((char) ch);
+	
+        throw new IllegalStateException("WebSocket binary must begin with a 0x80 packet at 0x" + Integer.toHexString(code)
+                                        + " ("+ (char) code + ")"
+					+ " context[" + sb + "]");
+      }
 
       while ((code = is.read()) >= 0) {
-	length = 0x80 * length + (code & 0x7f);
+	length = (length << 7) + (code & 0x7f);
 
 	if ((code & 0x80) == 0) {
 	  if (length == 0)
 	    _isPacketEnd = true;
-	  
+
 	  return length;
 	}
       }

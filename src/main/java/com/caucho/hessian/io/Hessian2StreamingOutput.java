@@ -70,6 +70,16 @@ public class Hessian2StreamingOutput
     _out = new Hessian2Output(os);
   }
   
+  public Hessian2StreamingOutput(Hessian2Output out)
+  {
+    _out = out;
+  }
+
+  public Hessian2Output getHessian2Output()
+  {
+    return _out;
+  }
+  
   public void setCloseStreamOnClose(boolean isClose)
   {
     _out.setCloseStreamOnClose(isClose);

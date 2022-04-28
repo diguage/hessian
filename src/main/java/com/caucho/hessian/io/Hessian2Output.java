@@ -84,15 +84,17 @@ public class Hessian2Output
   protected OutputStream _os;
 
   // map of references
-  private IdentityIntMap _refs = new IdentityIntMap();
+  private final IdentityIntMap _refs
+    = new IdentityIntMap(256);
 
   private boolean _isCloseStreamOnClose;
 
   // map of classes
-  private HashMap _classRefs;
+  private final IdentityIntMap _classRefs
+    = new IdentityIntMap(256);
 
   // map of types
-  private HashMap _typeRefs;
+  private HashMap<String,Integer> _typeRefs;
 
   private final byte []_buffer = new byte[SIZE];
   private int _offset;
@@ -107,6 +109,13 @@ public class Hessian2Output
    */
   public Hessian2Output(OutputStream os)
   {
+    init(os);
+  }
+
+  public void init(OutputStream os)
+  {
+    reset();
+
     _os = os;
   }
 
@@ -378,7 +387,7 @@ public class Hessian2Output
     _buffer[_offset++] = (byte) 'F';
     _buffer[_offset++] = (byte) 'H';
 
-    _refs.put(new HashMap(), _refs.size());
+    _refs.put(new Object(), _refs.size(), false);
 
     writeString("code");
     writeString(code);
@@ -520,17 +529,14 @@ public class Hessian2Output
    * C &lt;string> &lt;int> &lt;string>*
    * </pre></code>
    */
+  @Override
   public int writeObjectBegin(String type)
     throws IOException
   {
-    if (_classRefs == null)
-      _classRefs = new HashMap();
+    int newRef = _classRefs.size();
+    int ref = _classRefs.put(type, newRef, false);
 
-    Integer refV = (Integer) _classRefs.get(type);
-
-    if (refV != null) {
-      int ref = refV.intValue();
-
+    if (newRef != ref) {
       if (SIZE < _offset + 32)
         flushBuffer();
 
@@ -545,10 +551,6 @@ public class Hessian2Output
       return ref;
     }
     else {
-      int ref = _classRefs.size();
-
-      _classRefs.put(type, Integer.valueOf(ref));
-
       if (SIZE < _offset + 32)
         flushBuffer();
 
@@ -594,7 +596,7 @@ public class Hessian2Output
     }
 
     if (_typeRefs == null)
-      _typeRefs = new HashMap();
+      _typeRefs = new HashMap<String,Integer>();
 
     Integer typeRefV = (Integer) _typeRefs.get(type);
 
@@ -1109,8 +1111,6 @@ public class Hessian2Output
       _buffer[_offset++] = (byte) 'N';
     }
     else {
-      flushBuffer();
-
       while (SIZE - _offset - 3 < length) {
         int sublen = SIZE - _offset - 3;
 
@@ -1180,19 +1180,20 @@ public class Hessian2Output
     throws IOException
   {
     while (length > 0) {
-      int sublen = length;
+      flushIfFull();
 
-      if (0x8000 < sublen)
-        sublen = 0x8000;
+      int sublen = _buffer.length - _offset;
 
-      flushBuffer(); // bypass buffer
+      if (length < sublen)
+        sublen = length;
 
-      _os.write(BC_BINARY_CHUNK);
-      _os.write(sublen >> 8);
-      _os.write(sublen);
+      _buffer[_offset++] = BC_BINARY_CHUNK;
+      _buffer[_offset++] = (byte) (sublen >> 8);
+      _buffer[_offset++] = (byte) sublen;
 
-      _os.write(buffer, offset, sublen);
+      System.arraycopy(buffer, offset, _buffer, _offset, sublen);
 
+     _offset += sublen;
       length -= sublen;
       offset += sublen;
     }
@@ -1279,16 +1280,16 @@ public class Hessian2Output
   public boolean addRef(Object object)
     throws IOException
   {
-    int ref = _refs.get(object);
+    int newRef = _refs.size();
 
-    if (ref >= 0) {
+    int ref = _refs.put(object, newRef, false);
+
+    if (ref != newRef) {
       writeRef(ref);
 
       return true;
     }
     else {
-      _refs.put(object, _refs.size());
-
       return false;
     }
   }
@@ -1296,17 +1297,19 @@ public class Hessian2Output
   /**
    * Removes a reference.
    */
-  public boolean removeRef(Object obj)
+  /*
+  private boolean removeRef(Object obj)
     throws IOException
   {
     if (_refs != null) {
-      _refs.remove(obj);
+      _refs.put(obj, -1);
 
       return true;
     }
     else
       return false;
   }
+  */
 
   /**
    * Replaces a reference from one object to another.
@@ -1314,23 +1317,15 @@ public class Hessian2Output
   public boolean replaceRef(Object oldRef, Object newRef)
     throws IOException
   {
-    Integer value = (Integer) _refs.remove(oldRef);
+    int value = _refs.get(oldRef);
 
-    if (value != null) {
-      _refs.put(newRef, value);
+    if (value >= 0) {
+      _refs.put(newRef, value, true);
+
       return true;
     }
     else
       return false;
-  }
-
-  /**
-   * Resets the references for streaming.
-   */
-  public void resetReferences()
-  {
-    if (_refs != null)
-      _refs.clear();
   }
 
   /**
@@ -1368,7 +1363,10 @@ public class Hessian2Output
     flushBuffer();
 
     _isPacket = true;
-    _offset = 2;
+    _offset = 3;
+    _buffer[0] = (byte) 0x55;
+    _buffer[1] = (byte) 0x55;
+    _buffer[2] = (byte) 0x55;
   }
 
   public void endPacket()
@@ -1376,24 +1374,36 @@ public class Hessian2Output
   {
     int offset = _offset;
 
-    int len = offset - 2;
+    OutputStream os = _os;
 
-    _buffer[0] = (byte) (0x80 + ((len >> 7) & 0x7f));
-    _buffer[1] = (byte) (len & 0x7f);
+    if (os == null) {
+      _offset = 0;
+      return;
+    }
+
+    int len = offset - 3;
+
+    _buffer[0] = (byte) (0x80);
+    _buffer[1] = (byte) (0x80 + ((len >> 7) & 0x7f));
+    _buffer[2] = (byte) (len & 0x7f);
 
     // end chunk
+    _buffer[offset++] = (byte) 0x80;
     _buffer[offset++] = (byte) 0x00;
 
     _isPacket = false;
     _offset = 0;
 
-    OutputStream os = _os;
-
     if (os != null) {
-      if (len < 0x80)
+      if (len == 0) {
+        os.write(_buffer, 1, 2);
+      }
+      else if (len < 0x80) {
         os.write(_buffer, 1, offset - 1);
-      else
+      }
+      else {
         os.write(_buffer, 0, offset);
+      }
     }
   }
 
@@ -1510,11 +1520,7 @@ public class Hessian2Output
     int offset = _offset;
 
     if (SIZE < offset + 32) {
-      _offset = 0;
-
-      OutputStream os = _os;
-      if (os != null)
-        os.write(_buffer, 0, offset);
+      flushBuffer();
     }
   }
 
@@ -1536,18 +1542,23 @@ public class Hessian2Output
 
     if (! _isPacket && offset > 0) {
       _offset = 0;
-
       if (os != null)
         os.write(_buffer, 0, offset);
     }
-    else if (_isPacket && offset > 2) {
-      int len = offset - 2;
-      _buffer[0] = (byte) (0x80 + ((len >> 7) & 0x7f));
-      _buffer[1] = (byte) (len & 0x7f);
-      _offset = 2;
+    else if (_isPacket && offset > 3) {
+      int len = offset - 3;
+      _buffer[0] = (byte) 0x80;
+      _buffer[1] = (byte) (0x80 + ((len >> 7) & 0x7f));
+      _buffer[2] = (byte) (len & 0x7f);
+      _offset = 3;
 
       if (os != null)
         os.write(_buffer, 0, offset);
+
+      _buffer[0] = (byte) 0x56;
+      _buffer[1] = (byte) 0x56;
+      _buffer[2] = (byte) 0x56;
+
     }
   }
 
@@ -1564,6 +1575,38 @@ public class Hessian2Output
       if (_isCloseStreamOnClose)
         os.close();
     }
+  }
+
+  public void free()
+  {
+    reset();
+
+    _os = null;
+    _isCloseStreamOnClose = false;
+  }
+
+  /**
+   * Resets the references for streaming.
+   */
+  @Override
+  public void resetReferences()
+  {
+    if (_refs != null)
+      _refs.clear();
+  }
+
+  /**
+   * Resets all counters and references
+   */
+  public void reset()
+  {
+    if (_refs != null)
+      _refs.clear();
+
+    _classRefs.clear();
+    _typeRefs = null;
+    _offset = 0;
+    _isPacket = false;
   }
 
   class BytesOutputStream extends OutputStream {

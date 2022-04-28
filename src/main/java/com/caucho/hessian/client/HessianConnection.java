@@ -46,7 +46,7 @@
  * @author Scott Ferguson
  */
 
-package com.caucho.hessian.io;
+package com.caucho.hessian.client;
 
 import java.net.URL;
 import java.io.InputStream;
@@ -59,9 +59,20 @@ import java.io.IOException;
  */
 public interface HessianConnection {
   /**
+   * Adds HTTP headers.
+   */
+  public void addHeader(String key, String value);
+  
+  /**
    * Returns the output stream for the request.
    */
-  public OutputStream openOutputStream()
+  public OutputStream getOutputStream()
+    throws IOException;
+
+  /**
+   * Sends the query
+   */
+  public void sendRequest()
     throws IOException;
 
   /**
@@ -72,21 +83,24 @@ public interface HessianConnection {
   /**
    * Returns the status string.
    */
-  public String getStatus();
-
-  /**
-   * Returns the error message for a failed status
-   */
-  public String getErrorMessage();
+  public String getStatusMessage();
 
   /**
    * Returns the InputStream to the result
    */
-  public InputStream getInputStream();
+  public InputStream getInputStream()
+    throws IOException;
 
   /**
-   * Close/free the connection
+   * Close/free the connection. If keepalive is allowed, it may be used.
    */
-  public void close();
+  public void close()
+    throws IOException;
+
+  /**
+   * Shut the connection down.
+   */
+  public void destroy()
+    throws IOException;
 }
 

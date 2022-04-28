@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001-2008 Caucho Technology, Inc.  All rights reserved.
+ * Copyright (c) 2001-2004 Caucho Technology, Inc.  All rights reserved.
  *
  * The Apache Software License, Version 1.1
  *
@@ -46,57 +46,24 @@
  * @author Scott Ferguson
  */
 
-package com.caucho.hessian.io;
+package com.caucho.hessian.client;
 
+import java.net.URL;
 import java.io.IOException;
 
 /**
- * Serializing an object for known object types.
+ * Internal factory for creating connections to the server.  The default
+ * factory is java.net
  */
-public class ObjectDeserializer extends AbstractDeserializer {
-  private Class<?> _cl;
-
-  public ObjectDeserializer(Class<?> cl)
-  {
-    _cl = cl;
-  }
-
-  public Class<?> getType()
-  {
-    return _cl;
-  }
+public interface HessianConnectionFactory {
+  /**
+   * Sets the HessianProxyFactory
+   */
+  public void setHessianProxyFactory(HessianProxyFactory factory);
   
-  @Override  
-  public Object readObject(AbstractHessianInput in)
-    throws IOException
-  {
-    return in.readObject();
-  }
-
-  @Override
-  public Object readObject(AbstractHessianInput in, Object []fields)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(String.valueOf(this));
-  }
-  
-  @Override  
-  public Object readList(AbstractHessianInput in, int length)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(String.valueOf(this));
-  }
-  
-  @Override  
-  public Object readLengthList(AbstractHessianInput in, int length)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(String.valueOf(this));
-  }
-
-  @Override
-  public String toString()
-  {
-    return getClass().getSimpleName() + "[" + _cl + "]";
-  }
+  /**
+   * Opens a new or recycled connection to the HTTP server.
+   */
+  public HessianConnection open(URL url)
+    throws IOException;
 }

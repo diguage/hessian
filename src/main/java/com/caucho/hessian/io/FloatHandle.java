@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001-2008 Caucho Technology, Inc.  All rights reserved.
+ * Copyright (c) 2001-2004 Caucho Technology, Inc.  All rights reserved.
  *
  * The Apache Software License, Version 1.1
  *
@@ -48,55 +48,36 @@
 
 package com.caucho.hessian.io;
 
-import java.io.IOException;
+import java.net.URL;
+import java.io.Serializable;
 
 /**
- * Serializing an object for known object types.
+ * Handle for Java Float objects.
  */
-public class ObjectDeserializer extends AbstractDeserializer {
-  private Class<?> _cl;
+public class FloatHandle implements Serializable {
+  private float _value;
 
-  public ObjectDeserializer(Class<?> cl)
+  private FloatHandle()
   {
-    _cl = cl;
-  }
-
-  public Class<?> getType()
-  {
-    return _cl;
-  }
-  
-  @Override  
-  public Object readObject(AbstractHessianInput in)
-    throws IOException
-  {
-    return in.readObject();
   }
 
-  @Override
-  public Object readObject(AbstractHessianInput in, Object []fields)
-    throws IOException
+  public FloatHandle(float value)
   {
-    throw new UnsupportedOperationException(String.valueOf(this));
-  }
-  
-  @Override  
-  public Object readList(AbstractHessianInput in, int length)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(String.valueOf(this));
-  }
-  
-  @Override  
-  public Object readLengthList(AbstractHessianInput in, int length)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(String.valueOf(this));
+    _value = value;
   }
 
-  @Override
+  public float getValue()
+  {
+    return _value;
+  }
+
+  public Object readResolve()
+  {
+    return new Float(_value);
+  }
+
   public String toString()
   {
-    return getClass().getSimpleName() + "[" + _cl + "]";
+    return getClass().getSimpleName() + "[" + _value + "]";
   }
 }

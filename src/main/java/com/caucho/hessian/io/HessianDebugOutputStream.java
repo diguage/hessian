@@ -88,6 +88,11 @@ public class HessianDebugOutputStream extends OutputStream
     _state.startTop2();
   }
 
+  public void startStreaming()
+  {
+    _state.startStreaming();
+  }
+
   /**
    * Writes a character.
    */

@@ -46,57 +46,100 @@
  * @author Scott Ferguson
  */
 
-package com.caucho.hessian.io;
+package com.caucho.hessian.util;
 
-import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * Serializing an object for known object types.
+ * FreeList provides a simple class to manage free objects.  This is useful
+ * for large data structures that otherwise would gobble up huge GC time.
+ *
+ * <p>The free list is bounded.  Freeing an object when the list is full will
+ * do nothing.
  */
-public class ObjectDeserializer extends AbstractDeserializer {
-  private Class<?> _cl;
+public final class HessianFreeList<T> {
+  private final AtomicReferenceArray<T> _freeStack;
+  private final AtomicInteger _top = new AtomicInteger();
 
-  public ObjectDeserializer(Class<?> cl)
+  /**
+   * Create a new free list.
+   *
+   * @param initialSize maximum number of free objects to store.
+   */
+  public HessianFreeList(int size)
   {
-    _cl = cl;
-  }
-
-  public Class<?> getType()
-  {
-    return _cl;
+    _freeStack = new AtomicReferenceArray(size);
   }
   
-  @Override  
-  public Object readObject(AbstractHessianInput in)
-    throws IOException
+  /**
+   * Try to get an object from the free list.  Returns null if the free list
+   * is empty.
+   *
+   * @return the new object or null.
+   */
+  public T allocate()
   {
-    return in.readObject();
-  }
+    int top = _top.get();
 
-  @Override
-  public Object readObject(AbstractHessianInput in, Object []fields)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(String.valueOf(this));
+    if (top > 0 && _top.compareAndSet(top, top - 1))
+      return _freeStack.getAndSet(top - 1, null);
+    else
+      return null;
   }
   
-  @Override  
-  public Object readList(AbstractHessianInput in, int length)
-    throws IOException
+  /**
+   * Frees the object.  If the free list is full, the object will be garbage
+   * collected.
+   *
+   * @param obj the object to be freed.
+   */
+  public boolean free(T obj)
   {
-    throw new UnsupportedOperationException(String.valueOf(this));
-  }
-  
-  @Override  
-  public Object readLengthList(AbstractHessianInput in, int length)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(String.valueOf(this));
+    int top = _top.get();
+
+    if (top < _freeStack.length()) {
+      boolean isFree = _freeStack.compareAndSet(top, null, obj);
+      
+      _top.compareAndSet(top, top + 1);
+
+      return isFree;
+    }
+    else
+      return false;
   }
 
-  @Override
-  public String toString()
+  public boolean allowFree(T obj)
   {
-    return getClass().getSimpleName() + "[" + _cl + "]";
+    return _top.get() < _freeStack.length();
+  }
+
+  /**
+   * Frees the object.  If the free list is full, the object will be garbage
+   * collected.
+   *
+   * @param obj the object to be freed.
+   */
+  public void freeCareful(T obj)
+  {
+    if (checkDuplicate(obj))
+      throw new IllegalStateException("tried to free object twice: " + obj);
+
+    free(obj);
+  }
+
+  /**
+   * Debugging to see if the object has already been freed.
+   */
+  public boolean checkDuplicate(T obj)
+  {
+    int top = _top.get();
+
+    for (int i = top - 1; i >= 0; i--) {
+      if (_freeStack.get(i) == obj)
+	return true;
+    }
+
+    return false;
   }
 }

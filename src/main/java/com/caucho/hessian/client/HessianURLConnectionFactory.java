@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001-2008 Caucho Technology, Inc.  All rights reserved.
+ * Copyright (c) 2001-2004 Caucho Technology, Inc.  All rights reserved.
  *
  * The Apache Software License, Version 1.1
  *
@@ -46,57 +46,75 @@
  * @author Scott Ferguson
  */
 
-package com.caucho.hessian.io;
+package com.caucho.hessian.client;
+
+import java.net.URL;
+import java.net.URLConnection;
+import java.net.HttpURLConnection;
 
 import java.io.IOException;
 
+import java.util.logging.Logger;
+import java.util.logging.Level;
+
 /**
- * Serializing an object for known object types.
+ * Internal factory for creating connections to the server.  The default
+ * factory is java.net
  */
-public class ObjectDeserializer extends AbstractDeserializer {
-  private Class<?> _cl;
+public class HessianURLConnectionFactory implements HessianConnectionFactory {
+  private static final Logger log
+    = Logger.getLogger(HessianURLConnectionFactory.class.getName());
+  
+  private HessianProxyFactory _proxyFactory;
 
-  public ObjectDeserializer(Class<?> cl)
+  public void setHessianProxyFactory(HessianProxyFactory factory)
   {
-    _cl = cl;
-  }
-
-  public Class<?> getType()
-  {
-    return _cl;
+    _proxyFactory = factory;
   }
   
-  @Override  
-  public Object readObject(AbstractHessianInput in)
+  /**
+   * Opens a new or recycled connection to the HTTP server.
+   */
+  public HessianConnection open(URL url)
     throws IOException
   {
-    return in.readObject();
-  }
+    if (log.isLoggable(Level.FINER))
+      log.finer(this + " open(" + url + ")");
 
-  @Override
-  public Object readObject(AbstractHessianInput in, Object []fields)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(String.valueOf(this));
-  }
-  
-  @Override  
-  public Object readList(AbstractHessianInput in, int length)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(String.valueOf(this));
-  }
-  
-  @Override  
-  public Object readLengthList(AbstractHessianInput in, int length)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(String.valueOf(this));
-  }
+    URLConnection conn = url.openConnection();
 
-  @Override
-  public String toString()
-  {
-    return getClass().getSimpleName() + "[" + _cl + "]";
+    // HttpURLConnection httpConn = (HttpURLConnection) conn;
+    // httpConn.setRequestMethod("POST");
+    // conn.setDoInput(true);
+
+    long connectTimeout = _proxyFactory.getConnectTimeout();
+
+    if (connectTimeout >= 0)
+      conn.setConnectTimeout((int) connectTimeout);
+
+    conn.setDoOutput(true);
+
+    long readTimeout = _proxyFactory.getReadTimeout();
+
+    if (readTimeout > 0) {
+      try {
+        conn.setReadTimeout((int) readTimeout);
+      } catch (Throwable e) {
+      }
+    }
+
+    /*
+    // Used chunked mode when available, i.e. JDK 1.5.
+    if (_proxyFactory.isChunkedPost() && conn instanceof HttpURLConnection) {
+      try {
+	HttpURLConnection httpConn = (HttpURLConnection) conn;
+
+	httpConn.setChunkedStreamingMode(8 * 1024);
+      } catch (Throwable e) {
+      }
+    }
+    */
+    
+    return new HessianURLConnection(url, conn);
   }
 }

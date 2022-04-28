@@ -70,10 +70,11 @@ public class HessianProxy implements InvocationHandler, Serializable {
     = Logger.getLogger(HessianProxy.class.getName());
   
   protected HessianProxyFactory _factory;
+  
   private WeakHashMap<Method,String> _mangleMap
     = new WeakHashMap<Method,String>();
 
-  private Class _type;
+  private Class<?> _type;
   private URL _url;
 
   /**
@@ -87,14 +88,13 @@ public class HessianProxy implements InvocationHandler, Serializable {
   /**
    * Protected constructor for subclassing
    */
-  protected HessianProxy(URL url, HessianProxyFactory factory, Class type)
+  protected HessianProxy(URL url,
+                         HessianProxyFactory factory, 
+                         Class<?> type)
   {
     _factory = factory;
     _url = url;
     _type = type;
-
-    if (type == null)
-      Thread.dumpStack();
   }
 
   /**
@@ -123,7 +123,7 @@ public class HessianProxy implements InvocationHandler, Serializable {
 
     if (mangleName == null) {
       String methodName = method.getName();
-      Class []params = method.getParameterTypes();
+      Class<?> []params = method.getParameterTypes();
 
       // equals and hashCode are special cased
       if (methodName.equals("equals")
@@ -161,60 +161,13 @@ public class HessianProxy implements InvocationHandler, Serializable {
     }
 
     InputStream is = null;
-    URLConnection conn = null;
-    HttpURLConnection httpConn = null;
+    HessianConnection conn = null;
     
     try {
       if (log.isLoggable(Level.FINER))
 	log.finer("Hessian[" + _url + "] calling " + mangleName);
       
       conn = sendRequest(mangleName, args);
-
-      if (conn instanceof HttpURLConnection) {
-	httpConn = (HttpURLConnection) conn;
-        int code = 500;
-
-        try {
-          code = httpConn.getResponseCode();
-        } catch (Exception e) {
-        }
-
-        parseResponseHeaders(conn);
-
-        if (code != 200) {
-          StringBuffer sb = new StringBuffer();
-          int ch;
-
-          try {
-            is = httpConn.getInputStream();
-
-            if (is != null) {
-              while ((ch = is.read()) >= 0)
-                sb.append((char) ch);
-
-              is.close();
-            }
-
-            is = httpConn.getErrorStream();
-            if (is != null) {
-              while ((ch = is.read()) >= 0)
-                sb.append((char) ch);
-            }
-          } catch (FileNotFoundException e) {
-            throw new HessianConnectionException("HessianProxy cannot connect to '" + _url, e);
-          } catch (IOException e) {
-	    if (is == null)
-	      throw new HessianConnectionException(code + ": " + e, e);
-	    else
-	      throw new HessianConnectionException(code + ": " + sb, e);
-          }
-
-          if (is != null)
-            is.close();
-
-          throw new HessianConnectionException(code + ": " + sb.toString());
-        }
-      }
 
       is = conn.getInputStream();
 
@@ -253,9 +206,9 @@ public class HessianProxy implements InvocationHandler, Serializable {
 	Object value = in.readObject(method.getReturnType());
 
 	if (value instanceof InputStream) {
-	  value = new ResultInputStream(httpConn, is, in, (InputStream) value);
+	  value = new ResultInputStream(conn, is, in, (InputStream) value);
 	  is = null;
-	  httpConn = null;
+	  conn = null;
 	}
 	else
 	  in.completeReply();
@@ -275,8 +228,8 @@ public class HessianProxy implements InvocationHandler, Serializable {
       }
       
       try {
-	if (httpConn != null)
-	  httpConn.disconnect();
+	if (conn != null)
+	  conn.destroy();
       } catch (Exception e) {
 	log.log(Level.FINE, e.toString(), e);
       }
@@ -285,7 +238,7 @@ public class HessianProxy implements InvocationHandler, Serializable {
 
   protected String mangleName(Method method)
   {
-    Class []param = method.getParameterTypes();
+    Class<?> []param = method.getParameterTypes();
     
     if (param == null || param.length == 0)
       return method.getName();
@@ -294,33 +247,17 @@ public class HessianProxy implements InvocationHandler, Serializable {
   }
 
   /**
-   * Method that allows subclasses to parse response headers such as cookies.
-   * Default implementation is empty. 
-   * @param conn
+   * Sends the HTTP request to the Hessian connection.
    */
-  protected void parseResponseHeaders(URLConnection conn) {
-	  
-  }
-
-  protected URLConnection sendRequest(String methodName, Object []args)
+  protected HessianConnection sendRequest(String methodName, Object []args)
     throws IOException
   {
-    URLConnection conn = null;
+    HessianConnection conn = null;
     
-    conn = _factory.openConnection(_url);
+    conn = _factory.getConnectionFactory().open(_url);
     boolean isValid = false;
 
     try {
-      // Used chunked mode when available, i.e. JDK 1.5.
-      if (_factory.isChunkedPost() && conn instanceof HttpURLConnection) {
-	try {
-	  HttpURLConnection httpConn = (HttpURLConnection) conn;
-
-	  httpConn.setChunkedStreamingMode(8 * 1024);
-	} catch (Throwable e) {
-	}
-      }
-    
       addRequestHeaders(conn);
 
       OutputStream os = null;
@@ -343,13 +280,38 @@ public class HessianProxy implements InvocationHandler, Serializable {
       out.call(methodName, args);
       out.flush();
 
+      conn.sendRequest();
+
       isValid = true;
 
       return conn;
     } finally {
-      if (! isValid && conn instanceof HttpURLConnection)
-	((HttpURLConnection) conn).disconnect();
+      if (! isValid && conn != null)
+	conn.destroy();
     }
+  }
+
+  /**
+   * Method that allows subclasses to add request headers such as cookies.
+   * Default implementation is empty. 
+   */
+  protected void addRequestHeaders(HessianConnection conn)
+  {
+    conn.addHeader("Content-Type", "x-application/hessian");
+
+    String basicAuth = _factory.getBasicAuth();
+
+    if (basicAuth != null)
+      conn.addHeader("Authorization", basicAuth);
+  }
+
+  /**
+   * Method that allows subclasses to parse response headers such as cookies.
+   * Default implementation is empty. 
+   * @param conn
+   */
+  protected void parseResponseHeaders(URLConnection conn)
+  {
   }
 
   public Object writeReplace()
@@ -357,22 +319,13 @@ public class HessianProxy implements InvocationHandler, Serializable {
     return new HessianRemote(_type.getName(), _url.toString());
   }
 
-  /**
-   * Method that allows subclasses to add request headers such as cookies.
-   * Default implementation is empty. 
-   */
-  protected void addRequestHeaders(URLConnection conn) {
-	  
-  }
-	
-
   static class ResultInputStream extends InputStream {
-    private HttpURLConnection _conn;
+    private HessianConnection _conn;
     private InputStream _connIs;
     private AbstractHessianInput _in;
     private InputStream _hessianIs;
 
-    ResultInputStream(HttpURLConnection conn,
+    ResultInputStream(HessianConnection conn,
 		      InputStream is,
 		      AbstractHessianInput in,
 		      InputStream hessianIs)
@@ -416,7 +369,7 @@ public class HessianProxy implements InvocationHandler, Serializable {
     public void close()
       throws IOException
     {
-      HttpURLConnection conn = _conn;
+      HessianConnection conn = _conn;
       _conn = null;
       
       InputStream connIs = _connIs;
@@ -454,7 +407,7 @@ public class HessianProxy implements InvocationHandler, Serializable {
 
       try {
 	if (conn != null) {
-	  conn.disconnect();
+	  conn.close();
 	}
       } catch (Exception e) {
 	log.log(Level.FINE, e.toString(), e);

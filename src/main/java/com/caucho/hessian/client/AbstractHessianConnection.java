@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001-2008 Caucho Technology, Inc.  All rights reserved.
+ * Copyright (c) 2001-2004 Caucho Technology, Inc.  All rights reserved.
  *
  * The Apache Software License, Version 1.1
  *
@@ -46,57 +46,66 @@
  * @author Scott Ferguson
  */
 
-package com.caucho.hessian.io;
+package com.caucho.hessian.client;
 
+import java.net.URL;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.IOException;
 
 /**
- * Serializing an object for known object types.
+ * Internal connection to a server.  The default connection is based on
+ * java.net
  */
-public class ObjectDeserializer extends AbstractDeserializer {
-  private Class<?> _cl;
-
-  public ObjectDeserializer(Class<?> cl)
+abstract public class AbstractHessianConnection implements HessianConnection {
+  /**
+   * Adds HTTP headers.
+   */
+  public void addHeader(String key, String value)
   {
-    _cl = cl;
-  }
-
-  public Class<?> getType()
-  {
-    return _cl;
   }
   
-  @Override  
-  public Object readObject(AbstractHessianInput in)
+  /**
+   * Returns the output stream for the request.
+   */
+  abstract public OutputStream getOutputStream()
+    throws IOException;
+
+  /**
+   * Sends the query
+   */
+  abstract public void sendRequest()
+    throws IOException;
+
+  /**
+   * Returns the status code.
+   */
+  abstract public int getStatusCode();
+
+  /**
+   * Returns the status string.
+   */
+  abstract public String getStatusMessage();
+
+  /**
+   * Returns the InputStream to the result
+   */
+  abstract public InputStream getInputStream()
+    throws IOException;
+
+  /**
+   * Close/free the connection, using keepalive if appropriate.
+   */
+  public void close()
     throws IOException
   {
-    return in.readObject();
+    destroy();
   }
 
-  @Override
-  public Object readObject(AbstractHessianInput in, Object []fields)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(String.valueOf(this));
-  }
-  
-  @Override  
-  public Object readList(AbstractHessianInput in, int length)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(String.valueOf(this));
-  }
-  
-  @Override  
-  public Object readLengthList(AbstractHessianInput in, int length)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(String.valueOf(this));
-  }
-
-  @Override
-  public String toString()
-  {
-    return getClass().getSimpleName() + "[" + _cl + "]";
-  }
+  /**
+   * Destroy/disconnect the connection
+   */
+  abstract public void destroy()
+    throws IOException;
 }
+
