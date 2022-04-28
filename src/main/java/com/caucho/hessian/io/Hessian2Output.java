@@ -1283,7 +1283,7 @@ public class Hessian2Output
     int newRef = _refs.size();
 
     int ref = _refs.put(object, newRef, false);
-
+    
     if (ref != newRef) {
       writeRef(ref);
 
@@ -1293,23 +1293,28 @@ public class Hessian2Output
       return false;
     }
   }
+  
+  @Override
+  public int getRef(Object obj)
+  {
+    return _refs.get(obj);
+  }
 
   /**
    * Removes a reference.
    */
-  /*
-  private boolean removeRef(Object obj)
+  @Override
+  public boolean removeRef(Object obj)
     throws IOException
   {
     if (_refs != null) {
-      _refs.put(obj, -1);
+      _refs.remove(obj);
 
       return true;
     }
     else
       return false;
   }
-  */
 
   /**
    * Replaces a reference from one object to another.
@@ -1321,7 +1326,9 @@ public class Hessian2Output
 
     if (value >= 0) {
       _refs.put(newRef, value, true);
-
+      
+      _refs.remove(oldRef);
+      
       return true;
     }
     else

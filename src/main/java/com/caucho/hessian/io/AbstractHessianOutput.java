@@ -425,7 +425,6 @@ abstract public class AbstractHessianOutput {
   /**
    * Removes a reference.
    */
-  @Deprecated
   public boolean removeRef(Object obj)
     throws IOException
   {
@@ -453,6 +452,12 @@ abstract public class AbstractHessianOutput {
    */
   abstract public boolean addRef(Object object)
     throws IOException;
+
+  /**
+   * @param obj
+   * @return
+   */
+  abstract public int getRef(Object obj);
 
   /**
    * Resets the references for streaming.

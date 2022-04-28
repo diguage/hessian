@@ -817,6 +817,22 @@ public class HessianOutput extends AbstractHessianOutput {
       return false;
     }
   }
+  
+  @Override
+  public int getRef(Object obj)
+  {
+    Integer value;
+    
+    if (_refs == null)
+      return -1;
+    
+    value = (Integer) _refs.get(obj);
+    
+    if (value == null)
+      return -1;
+    else
+      return value;
+  }
 
   /**
    * Resets the references for streaming.
@@ -852,6 +868,7 @@ public class HessianOutput extends AbstractHessianOutput {
 
     if (value != null) {
       _refs.put(newRef, value);
+      
       return true;
     }
     else

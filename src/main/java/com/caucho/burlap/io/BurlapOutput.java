@@ -748,6 +748,20 @@ public class BurlapOutput extends AbstractBurlapOutput {
       return false;
     }
   }
+  
+  @Override
+  public int getRef(Object obj)
+  {
+    if (_refs == null)
+      return -1;
+    
+    Integer ref = (Integer) _refs.get(obj);
+    
+    if (ref != null)
+      return ref;
+    else
+      return -1;
+  }
 
   /**
    * Removes a reference.

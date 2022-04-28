@@ -274,8 +274,11 @@ public class SerializerFactory extends AbstractSerializerFactory
     else if (BurlapRemoteObject.class.isAssignableFrom(cl))
       return new RemoteSerializer();
 
-    else if (JavaSerializer.getWriteReplace(cl) != null)
-      return new WriteReplaceSerializer(cl, _loader);
+    else if (JavaSerializer.getWriteReplace(cl) != null) {
+      Serializer baseSerializer = getDefaultSerializer(cl);
+      
+      return new WriteReplaceSerializer(cl, _loader, baseSerializer);
+    }
 
     else if (Map.class.isAssignableFrom(cl)) {
       if (_mapSerializer == null)
@@ -387,6 +390,9 @@ public class SerializerFactory extends AbstractSerializerFactory
 
       deserializer = factory.getDeserializer(cl);
     }
+
+    if (deserializer != null)
+      return deserializer;
 
     // XXX: need test
     deserializer = _contextFactory.getDeserializer(cl.getName());
