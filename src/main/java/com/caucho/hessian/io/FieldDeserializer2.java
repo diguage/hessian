@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001-2004 Caucho Technology, Inc.  All rights reserved.
+ * Copyright (c) 2001-2008 Caucho Technology, Inc.  All rights reserved.
  *
  * The Apache Software License, Version 1.1
  *
@@ -53,28 +53,7 @@ import java.io.IOException;
 /**
  * Serializing an object for known object types.
  */
-public class ThrowableSerializer extends AbstractSerializerWrapper {
-  private final Serializer _ser;
-  
-  public ThrowableSerializer(Serializer ser)
-  {
-    _ser = ser;
-  }
-  
-  @Override
-  protected Serializer getDelegate()
-  {
-    return _ser;
-  }
-  
-  @Override
-  public void writeObject(Object obj, AbstractHessianOutput out)
-    throws IOException
-  {
-    Throwable e = (Throwable) obj;
-
-    e.getStackTrace();
-
-    _ser.writeObject(obj, out);
-  }
+public interface FieldDeserializer2 {
+  void deserialize(AbstractHessianInput in, Object obj)
+    throws IOException;
 }

@@ -177,6 +177,13 @@ public class Hessian2Input
 
     return factory;
   }
+  
+  public void allow(String pattern)
+  {
+    ClassFactory factory = getSerializerFactory().getClassFactory();
+    
+    factory.allow(pattern);
+  }
 
   public void setCloseStreamOnClose(boolean isClose)
   {
@@ -433,9 +440,11 @@ public class Hessian2Input
     if (detail instanceof Throwable) {
       _replyFault = (Throwable) detail;
       
-      if (message != null && _detailMessageField != null) {
+      Field detailMessageField = getDetailMessageField();
+      
+      if (message != null && detailMessageField != null) {
         try {
-          _detailMessageField.set(_replyFault, message);
+          detailMessageField.set(_replyFault, message);
         } catch (Throwable e) {
         }
       }
@@ -2189,7 +2198,7 @@ public class Hessian2Input
     
     for (int i = 0; i < len; i++) {
       String name = readString();
-      
+
       fields[i] = reader.createField(name);
       fieldNames[i] = name;
     }
@@ -3033,12 +3042,17 @@ public class Hessian2Input
       return _fieldNames;
     }
   }
-
-  static {
-    try {
-      _detailMessageField = Throwable.class.getDeclaredField("detailMessage");
-      _detailMessageField.setAccessible(true);
-    } catch (Throwable e) {
+  
+  private static Field getDetailMessageField()
+  {
+    if (_detailMessageField == null) {
+      try {
+        _detailMessageField = Throwable.class.getDeclaredField("detailMessage");
+        _detailMessageField.setAccessible(true);
+      } catch (Throwable e) {
+      }
     }
+    
+    return _detailMessageField;
   }
 }

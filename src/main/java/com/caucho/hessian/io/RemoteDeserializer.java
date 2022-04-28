@@ -48,20 +48,12 @@
 
 package com.caucho.hessian.io;
 
-import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.util.HashMap;
-
-import java.util.logging.*;
+import java.util.logging.Logger;
 
 /**
  * Serializing an object for known object types.
  */
-public class RemoteDeserializer extends  JavaDeserializer {
+public class RemoteDeserializer extends JavaDeserializer {
   private static final Logger log
     = Logger.getLogger(RemoteDeserializer.class.getName());
   
@@ -69,7 +61,7 @@ public class RemoteDeserializer extends  JavaDeserializer {
   
   public RemoteDeserializer()
   {
-    super(HessianRemote.class);
+    super(HessianRemote.class, FieldDeserializer2Factory.create());
   }
 
   @Override
