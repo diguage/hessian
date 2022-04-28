@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001-2004 Caucho Technology, Inc.  All rights reserved.
+ * Copyright (c) 2001-2008 Caucho Technology, Inc.  All rights reserved.
  *
  * The Apache Software License, Version 1.1
  *
@@ -49,103 +49,44 @@
 package com.caucho.hessian.io;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.HashMap;
+
 import java.util.logging.*;
 
-import com.caucho.hessian.HessianException;
-
 /**
- * Serializing an object. 
+ * Serializing an object for known object types.
  */
-abstract public class AbstractSerializer implements Serializer {
-  public static final NullSerializer NULL = new NullSerializer();
+public class RemoteDeserializer extends  JavaDeserializer {
+  private static final Logger log
+    = Logger.getLogger(RemoteDeserializer.class.getName());
   
-  protected static final Logger log
-    = Logger.getLogger(AbstractSerializer.class.getName());
+  public static final Deserializer DESER = new RemoteDeserializer();
   
-  public void writeObject(Object obj, AbstractHessianOutput out)
-    throws IOException
+  public RemoteDeserializer()
   {
-    if (out.addRef(obj)) {
-      return;
-    }
-    
-    try {
-      Object replace = writeReplace(obj);
-      
-      if (replace != null) {
-	out.removeRef(obj);
-
-	out.writeObject(replace);
-
-	out.replaceRef(replace, obj);
-
-	return;
-      }
-    } catch (RuntimeException e) {
-      throw e;
-    } catch (Exception e) {
-      // log.log(Level.FINE, e.toString(), e);
-      throw new HessianException(e);
-    }
-
-    Class cl = getClass(obj);
-
-    int ref = out.writeObjectBegin(cl.getName());
-
-    if (ref < -1) {
-      writeObject10(obj, out);
-    }
-    else {
-      if (ref == -1) {
-	writeDefinition20(cl, out);
-	
-	out.writeObjectBegin(cl.getName());
-      }
-
-      writeInstance(obj, out);
-    }
+    super(HessianRemote.class);
   }
 
-  protected Object writeReplace(Object obj)
+  @Override
+  public boolean isReadResolve()
   {
-    return null;
+    return true;
   }
 
-  protected Class getClass(Object obj)
+  @Override
+  protected Object resolve(AbstractHessianInput in, Object obj)
+    throws Exception
   {
-    return obj.getClass();
-  }
+    HessianRemote remote = (HessianRemote) obj;
+    HessianRemoteResolver resolver = in.getRemoteResolver();
 
-  protected void writeObject10(Object obj,
-			    AbstractHessianOutput out)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(getClass().getName());
-  }
+    Object proxy = resolver.lookup(remote.getType(), remote.getURL());
 
-  protected void writeDefinition20(Class cl,
-				AbstractHessianOutput out)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(getClass().getName());
-  }
-
-  protected void writeInstance(Object obj,
-			    AbstractHessianOutput out)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(getClass().getName());
-  }
-
-  /**
-   * The NullSerializer exists as a marker for the factory classes so
-   * they save a null result.
-   */
-  static final class NullSerializer extends AbstractSerializer {
-    public void writeObject(Object obj, AbstractHessianOutput out)
-      throws IOException
-    {
-      throw new IllegalStateException(getClass().getName());
-    }
+    return proxy;
   }
 }

@@ -54,9 +54,16 @@ import java.io.IOException;
  * Deserializing an object. 
  */
 abstract public class AbstractDeserializer implements Deserializer {
+  public static final NullDeserializer NULL = new NullDeserializer();
+  
   public Class getType()
   {
     return Object.class;
+  }
+
+  public boolean isReadResolve()
+  {
+    return false;
   }
 
   public Object readObject(AbstractHessianInput in)
@@ -100,7 +107,7 @@ abstract public class AbstractDeserializer implements Deserializer {
   public Object readObject(AbstractHessianInput in, String []fieldNames)
     throws IOException
   {
-    throw new UnsupportedOperationException(String.valueOf(this));
+    throw new UnsupportedOperationException(toString());
   }
 
   protected HessianProtocolException error(String msg)
@@ -114,5 +121,12 @@ abstract public class AbstractDeserializer implements Deserializer {
       return "end of file";
     else
       return "0x" + Integer.toHexString(ch & 0xff);
+  }
+
+  /**
+   * The NullDeserializer exists as a marker for the factory classes so
+   * they save a null result.
+   */
+  static final class NullDeserializer extends AbstractDeserializer {
   }
 }

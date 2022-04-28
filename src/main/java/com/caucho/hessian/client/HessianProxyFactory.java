@@ -65,8 +65,10 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.HttpURLConnection;
 import java.net.URLConnection;
 import java.util.Hashtable;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -294,7 +296,13 @@ public class HessianProxyFactory implements ServiceProxyFactory, ObjectFactory {
   protected URLConnection openConnection(URL url)
     throws IOException
   {
+    if (log.isLoggable(Level.FINER))
+      log.finer(this + " openConnection(" + url + ")");
+
     URLConnection conn = url.openConnection();
+
+    HttpURLConnection httpConn = (HttpURLConnection) conn;
+    // httpConn.setMethod("POST");
 
     conn.setDoOutput(true);
 
@@ -388,7 +396,25 @@ public class HessianProxyFactory implements ServiceProxyFactory, ObjectFactory {
     InvocationHandler handler = null;
 
     URL url = new URL(urlName); 
-    handler = new HessianProxy(this, url);
+
+    try {
+      // clear old keepalive connections
+      HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+
+      conn.setConnectTimeout(10);
+      conn.setReadTimeout(10);
+
+      conn.setRequestProperty("Connection", "close");
+
+      InputStream is = conn.getInputStream();
+
+      is.close();
+
+      conn.disconnect();
+    } catch (IOException e) {
+    }
+    
+    handler = new HessianProxy(url, this, api);
 
     return Proxy.newProxyInstance(loader,
                                   new Class[] { api,

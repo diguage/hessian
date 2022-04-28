@@ -78,7 +78,6 @@ public class Hessian2Input
   private static final Logger log
     = Logger.getLogger(Hessian2Input.class.getName());
   
-  private static final double D_256 = 1.0 / 256.0;
   private static final int END_OF_DATA = -2;
 
   private static Field _detailMessageField;
@@ -86,6 +85,8 @@ public class Hessian2Input
   private static final int SIZE = 256;
   private static final int GAP = 16;
   
+  // standard, unmodified factory for deserializing objects
+  protected SerializerFactory _defaultSerializerFactory;
   // factory for deserializing objects in the input stream
   protected SerializerFactory _serializerFactory;
 
@@ -146,19 +147,28 @@ public class Hessian2Input
    */
   public SerializerFactory getSerializerFactory()
   {
+    // the default serializer factory cannot be modified by external
+    // callers
+    if (_serializerFactory == _defaultSerializerFactory) {
+      _serializerFactory = new SerializerFactory();
+    }
+    
     return _serializerFactory;
   }
 
   /**
-   * Gets the serializer factory, creating a default if necessary.
+   * Gets the serializer factory.
    */
-  public final SerializerFactory findSerializerFactory()
+  protected final SerializerFactory findSerializerFactory()
   {
     SerializerFactory factory = _serializerFactory;
 
-    if (factory == null)
-      _serializerFactory = factory = new SerializerFactory();
-    
+    if (factory == null) {
+      factory = SerializerFactory.createDefault();
+      _defaultSerializerFactory = factory;
+      _serializerFactory = factory;
+    }
+
     return factory;
   }
 
@@ -299,6 +309,19 @@ public class Hessian2Input
     readCall();
 
     readMethod();
+  }
+
+  public Object []readArguments()
+    throws IOException
+  {
+    int len = readInt();
+
+    Object []args = new Object[len];
+
+    for (int i = 0; i < len; i++)
+      args[i] = readObject();
+
+    return args;
   }
 
   /**
@@ -444,7 +467,7 @@ public class Hessian2Input
   }
 
   /**
-   * Starts reading the message
+   * Starts reading a packet
    *
    * <pre>
    * p major minor
@@ -1302,8 +1325,9 @@ public class Hessian2Input
 
       _sbuf.setLength(0);
 
-      while ((ch = parseChar()) >= 0)
+      while ((ch = parseChar()) >= 0) {
         _sbuf.append((char) ch);
+      }
 
       return _sbuf.toString();
 
@@ -1339,9 +1363,9 @@ public class Hessian2Input
     case 'N':
       return null;
 
-    case 'B':
+    case BC_BINARY:
     case BC_BINARY_CHUNK:
-      _isLastChunk = tag == 'B';
+      _isLastChunk = tag == BC_BINARY;
       _chunkLength = (read() << 8) + read();
 
       ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -1638,7 +1662,7 @@ public class Hessian2Input
 	String type = readType();
       
 	Deserializer reader;
-	reader = findSerializerFactory().getListDeserializer(null, cl);
+	reader = findSerializerFactory().getListDeserializer(type, cl);
 
 	Object v = reader.readLengthList(this, length);
 
@@ -1998,7 +2022,8 @@ public class Hessian2Input
 	int ref = tag - 0x60;
 
 	if (_classDefs == null)
-	  throw error("No classes defined at reference '{0}'" + tag);
+	  throw error("No classes defined at reference '"
+		      + Integer.toHexString(tag) + "'");
 	
 	ObjectDefinition def = (ObjectDefinition) _classDefs.get(ref);
 
@@ -2008,6 +2033,9 @@ public class Hessian2Input
     case 'O':
       {
 	int ref = readInt();
+
+	if (_classDefs == null || _classDefs.size() <= ref)
+	  throw error("Illegal object reference #" + ref);
 
 	ObjectDefinition def = (ObjectDefinition) _classDefs.get(ref);
 
@@ -2538,9 +2566,9 @@ public class Hessian2Input
     case 'N':
       return null;
 
-    case 'B':
-    case 'b':
-      _isLastChunk = tag == 'B';
+    case BC_BINARY:
+    case BC_BINARY_CHUNK:
+      _isLastChunk = tag == BC_BINARY;
       _chunkLength = (read() << 8) + read();
       break;
 
@@ -2575,13 +2603,13 @@ public class Hessian2Input
         int code = read();
 
         switch (code) {
-        case 'b':
+        case BC_BINARY_CHUNK:
           _isLastChunk = false;
 
           _chunkLength = (read() << 8) + read();
           break;
         
-        case 'B':
+        case BC_BINARY:
           _isLastChunk = true;
 
           _chunkLength = (read() << 8) + read();
@@ -2634,6 +2662,14 @@ public class Hessian2Input
       return -1;
 
     return _buffer[_offset++] & 0xff;
+  }
+
+  protected void unread()
+  {
+    if (_offset <= 0)
+      throw new IllegalStateException();
+    
+    _offset--;
   }
 
   private final boolean readBuffer()

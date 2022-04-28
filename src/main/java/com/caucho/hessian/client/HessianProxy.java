@@ -65,31 +65,36 @@ import java.net.URLConnection;
  * Proxy implementation for Hessian clients.  Applications will generally
  * use HessianProxyFactory to create proxy clients.
  */
-public class HessianProxy implements InvocationHandler {
+public class HessianProxy implements InvocationHandler, Serializable {
   private static final Logger log
     = Logger.getLogger(HessianProxy.class.getName());
   
   protected HessianProxyFactory _factory;
   private WeakHashMap<Method,String> _mangleMap
     = new WeakHashMap<Method,String>();
+
+  private Class _type;
   private URL _url;
-  
-  /**
-   * Package protected constructor for factory
-   */
-  HessianProxy(HessianProxyFactory factory, URL url)
-  {
-    _factory = factory;
-    _url = url;
-  }
 
   /**
    * Protected constructor for subclassing
    */
   protected HessianProxy(URL url, HessianProxyFactory factory)
   {
+    this(url, factory, null);
+  }
+
+  /**
+   * Protected constructor for subclassing
+   */
+  protected HessianProxy(URL url, HessianProxyFactory factory, Class type)
+  {
     _factory = factory;
     _url = url;
+    _type = type;
+
+    if (type == null)
+      Thread.dumpStack();
   }
 
   /**
@@ -233,12 +238,17 @@ public class HessianProxy implements InvocationHandler {
 
 	in = _factory.getHessian2Input(is);
 
-	return in.readReply(method.getReturnType());
+	Object value = in.readReply(method.getReturnType());
+
+	return value;
       }
       else if (code == 'r') {
+	int major = is.read();
+	int minor = is.read();
+	
 	in = _factory.getHessianInput(is);
 
-	in.startReply();
+	in.startReplyBody();
 
 	Object value = in.readObject(method.getReturnType());
 
@@ -323,7 +333,9 @@ public class HessianProxy implements InvocationHandler {
 
       if (log.isLoggable(Level.FINEST)) {
 	PrintWriter dbg = new PrintWriter(new LogWriter(log));
-	os = new HessianDebugOutputStream(os, dbg);
+	HessianDebugOutputStream dOs = new HessianDebugOutputStream(os, dbg);
+	dOs.startTop2();
+	os = dOs;
       }
       
       AbstractHessianOutput out = _factory.getHessianOutput(os);
@@ -338,6 +350,11 @@ public class HessianProxy implements InvocationHandler {
       if (! isValid && conn instanceof HttpURLConnection)
 	((HttpURLConnection) conn).disconnect();
     }
+  }
+
+  public Object writeReplace()
+  {
+    return new HessianRemote(_type.getName(), _url.toString());
   }
 
   /**

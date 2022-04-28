@@ -7,7 +7,7 @@
 
     <groupId>com.diguage</groupId>
     <artifactId>hessian</artifactId>
-    <version>3.2.1</version>
+    <version>4.0.1</version>
 
     <properties>
         <servlet-api.version>4.0.1</servlet-api.version>

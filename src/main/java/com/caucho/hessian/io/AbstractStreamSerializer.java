@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001-2004 Caucho Technology, Inc.  All rights reserved.
+ * Copyright (c) 2001-2008 Caucho Technology, Inc.  All rights reserved.
  *
  * The Apache Software License, Version 1.1
  *
@@ -48,104 +48,72 @@
 
 package com.caucho.hessian.io;
 
+import java.io.InputStream;
 import java.io.IOException;
-import java.util.logging.*;
-
-import com.caucho.hessian.HessianException;
+import java.io.Serializable;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
- * Serializing an object. 
+ * Serializing an object containing a byte stream.
  */
-abstract public class AbstractSerializer implements Serializer {
-  public static final NullSerializer NULL = new NullSerializer();
-  
-  protected static final Logger log
-    = Logger.getLogger(AbstractSerializer.class.getName());
-  
+abstract public class AbstractStreamSerializer extends AbstractSerializer
+{
+  /**
+   * Writes the object to the output stream.
+   */
   public void writeObject(Object obj, AbstractHessianOutput out)
     throws IOException
   {
     if (out.addRef(obj)) {
       return;
     }
-    
-    try {
-      Object replace = writeReplace(obj);
-      
-      if (replace != null) {
-	out.removeRef(obj);
 
-	out.writeObject(replace);
-
-	out.replaceRef(replace, obj);
-
-	return;
-      }
-    } catch (RuntimeException e) {
-      throw e;
-    } catch (Exception e) {
-      // log.log(Level.FINE, e.toString(), e);
-      throw new HessianException(e);
-    }
-
-    Class cl = getClass(obj);
-
-    int ref = out.writeObjectBegin(cl.getName());
+    int ref = out.writeObjectBegin(getClassName(obj));
 
     if (ref < -1) {
-      writeObject10(obj, out);
+      out.writeString("value");
+
+      InputStream is = getInputStream(obj);
+      try {
+	out.writeByteStream(is);
+      } finally {
+	is.close();
+      }
+      
+      out.writeMapEnd();
     }
     else {
       if (ref == -1) {
-	writeDefinition20(cl, out);
-	
-	out.writeObjectBegin(cl.getName());
+	out.writeClassFieldLength(1);
+	out.writeString("value");
+
+	out.writeObjectBegin(getClassName(obj));
       }
 
-      writeInstance(obj, out);
+      InputStream is = getInputStream(obj);
+
+      try {
+	if (is != null)
+	  out.writeByteStream(is);
+	else
+	  out.writeNull();
+      } finally {
+	if (is != null)
+	  is.close();
+      }
     }
   }
 
-  protected Object writeReplace(Object obj)
+  protected String getClassName(Object obj)
   {
-    return null;
+    return obj.getClass().getName();
   }
 
-  protected Class getClass(Object obj)
-  {
-    return obj.getClass();
-  }
-
-  protected void writeObject10(Object obj,
-			    AbstractHessianOutput out)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(getClass().getName());
-  }
-
-  protected void writeDefinition20(Class cl,
-				AbstractHessianOutput out)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(getClass().getName());
-  }
-
-  protected void writeInstance(Object obj,
-			    AbstractHessianOutput out)
-    throws IOException
-  {
-    throw new UnsupportedOperationException(getClass().getName());
-  }
-
-  /**
-   * The NullSerializer exists as a marker for the factory classes so
-   * they save a null result.
-   */
-  static final class NullSerializer extends AbstractSerializer {
-    public void writeObject(Object obj, AbstractHessianOutput out)
-      throws IOException
-    {
-      throw new IllegalStateException(getClass().getName());
-    }
-  }
+  abstract protected InputStream getInputStream(Object obj)
+    throws IOException;
 }

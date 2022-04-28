@@ -50,6 +50,7 @@ package com.caucho.hessian.io;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.Reader;
 
 /**
@@ -67,6 +68,7 @@ import java.io.Reader;
  */
 abstract public class AbstractHessianInput {
   private HessianRemoteResolver resolver;
+  private byte []_buffer;
   
   /**
    * Initialize the Hessian stream with the underlying input stream.
@@ -200,6 +202,15 @@ abstract public class AbstractHessianInput {
     throws Throwable;
 
   /**
+   * Starts reading the body of the reply, i.e. after the 'r' has been
+   * parsed.
+   */
+  public void startReplyBody()
+    throws Throwable
+  {
+  }
+
+  /**
    * Completes reading the call
    *
    * <p>A successful completion will have a single value:
@@ -321,6 +332,40 @@ abstract public class AbstractHessianInput {
    */
   abstract public InputStream readInputStream()
     throws IOException;
+
+  /**
+   * Reads data to an output stream.
+   *
+   * <pre>
+   * b b16 b8 non-final binary chunk
+   * B b16 b8 final binary chunk
+   * </pre>
+   */
+  public boolean readToOutputStream(OutputStream os)
+    throws IOException
+  {
+    InputStream is = readInputStream();
+
+    if (is == null)
+      return false;
+
+    if (_buffer == null)
+      _buffer = new byte[256];
+
+    try {
+      int len;
+
+      while ((len = is.read(_buffer, 0, _buffer.length)) > 0) {
+	os.write(_buffer, 0, len);
+      }
+
+      return true;
+    } finally {
+      is.close();
+    }
+  }
+    
+	   
 
   /**
    * Reads a byte array.
