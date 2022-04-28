@@ -48,20 +48,6 @@
 
 package com.caucho.hessian.server;
 
-import com.caucho.hessian.io.AbstractHessianInput;
-import com.caucho.hessian.io.AbstractHessianOutput;
-import com.caucho.hessian.io.Hessian2Input;
-import com.caucho.hessian.io.Hessian2Output;
-import com.caucho.hessian.io.HessianFactory;
-import com.caucho.hessian.io.HessianInput;
-import com.caucho.hessian.io.HessianOutput;
-import com.caucho.hessian.io.HessianDebugInputStream;
-import com.caucho.hessian.io.HessianDebugOutputStream;
-import com.caucho.hessian.io.HessianInputFactory;
-import com.caucho.hessian.io.SerializerFactory;
-import com.caucho.services.server.AbstractSkeleton;
-import com.caucho.services.server.ServiceContext;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -71,6 +57,16 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import com.caucho.hessian.io.AbstractHessianInput;
+import com.caucho.hessian.io.AbstractHessianOutput;
+import com.caucho.hessian.io.HessianDebugInputStream;
+import com.caucho.hessian.io.HessianDebugOutputStream;
+import com.caucho.hessian.io.HessianFactory;
+import com.caucho.hessian.io.HessianInputFactory;
+import com.caucho.hessian.io.SerializerFactory;
+import com.caucho.services.server.AbstractSkeleton;
+import com.caucho.services.server.ServiceContext;
 
 /**
  * Proxy class for Hessian services.
@@ -92,7 +88,7 @@ public class HessianSkeleton extends AbstractSkeleton {
    * @param service the underlying service object.
    * @param apiClass the API interface
    */
-  public HessianSkeleton(Object service, Class apiClass)
+  public HessianSkeleton(Object service, Class<?> apiClass)
   {
     super(apiClass);
 
@@ -111,7 +107,7 @@ public class HessianSkeleton extends AbstractSkeleton {
    * @param service the underlying service object.
    * @param apiClass the API interface
    */
-  public HessianSkeleton(Class apiClass)
+  public HessianSkeleton(Class<?> apiClass)
   {
     super(apiClass);
   }
@@ -277,7 +273,7 @@ public class HessianSkeleton extends AbstractSkeleton {
     }
     else if (method == null) {
       out.writeFault("NoSuchMethodException",
-                     "The service has no method named: " + in.getMethod(),
+                     escapeMessage("The service has no method named: " + in.getMethod()),
                      null);
       out.close();
       return;
@@ -287,7 +283,7 @@ public class HessianSkeleton extends AbstractSkeleton {
 
     if (argLength != args.length && argLength >= 0) {
       out.writeFault("NoSuchMethod",
-                     "method " + method + " argument length mismatch, received length=" + argLength,
+                     escapeMessage("method " + method + " argument length mismatch, received length=" + argLength),
                      null);
       out.close();
       return;
@@ -311,7 +307,9 @@ public class HessianSkeleton extends AbstractSkeleton {
 
       log.log(Level.FINE, this + " " + e1.toString(), e1);
 
-      out.writeFault("ServiceException", e1.getMessage(), e1);
+      out.writeFault("ServiceException", 
+                     escapeMessage(e1.getMessage()), 
+                     e1);
       out.close();
       return;
     }
@@ -324,11 +322,44 @@ public class HessianSkeleton extends AbstractSkeleton {
 
     out.close();
   }
+  
+  private String escapeMessage(String msg)
+  {
+    if (msg == null)
+      return null;
+    
+    StringBuilder sb = new StringBuilder();
+    
+    int length = msg.length();
+    for (int i = 0; i < length; i++) {
+      char ch = msg.charAt(i);
+      
+      switch (ch) {
+      case '<':
+        sb.append("&lt;");
+        break;
+      case '>':
+        sb.append("&gt;");
+        break;
+      case 0x0:
+        sb.append("&#00;");
+        break;
+      case '&':
+        sb.append("&amp;");
+        break;
+      default:
+        sb.append(ch);
+        break;
+      }
+    }
+    
+    return sb.toString();
+  }
 
   protected boolean isDebugInvoke()
   {
     return (log.isLoggable(Level.FINEST)
-	    || isDebug() && log.isLoggable(Level.FINE));
+            || isDebug() && log.isLoggable(Level.FINE));
   }
   
   /**

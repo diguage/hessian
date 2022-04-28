@@ -93,6 +93,12 @@ abstract public class AbstractHessianConnection implements HessianConnection {
   abstract public InputStream getInputStream()
     throws IOException;
 
+  @Override
+  public String getContentEncoding()
+  {
+    return null;
+  }
+  
   /**
    * Close/free the connection, using keepalive if appropriate.
    */

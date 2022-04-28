@@ -48,18 +48,22 @@
 
 package com.caucho.hessian.io;
 
-import com.caucho.hessian.HessianException;
-
-import java.io.*;
-import java.math.BigDecimal;
-import java.net.URL;
+import java.io.InputStream;
 import java.lang.ref.SoftReference;
-import java.util.*;
+import java.lang.ref.WeakReference;
+import java.net.InetAddress;
+import java.net.URL;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Properties;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.lang.annotation.Annotation;
-import java.lang.ref.WeakReference;
+
+import com.caucho.hessian.HessianException;
 
 /**
  * The classloader-specific Factory for returning serialization
@@ -83,7 +87,7 @@ public class ContextSerializerFactory
   private static HashMap _staticClassNameMap;
 
   private ContextSerializerFactory _parent;
-  private ClassLoader _loader;
+  private WeakReference<ClassLoader> _loaderRef;
 
   private final HashSet<String> _serializerFiles = new HashSet<String>();
   private final HashSet<String> _deserializerFiles = new HashSet<String>();
@@ -94,8 +98,8 @@ public class ContextSerializerFactory
   private final ConcurrentHashMap<String,Serializer> _customSerializerMap
     = new ConcurrentHashMap<String,Serializer>();
 
-  private final HashMap<Class,Serializer> _serializerInterfaceMap
-    = new HashMap<Class,Serializer>();
+  private final HashMap<Class<?>,Serializer> _serializerInterfaceMap
+    = new HashMap<Class<?>,Serializer>();
 
   private final HashMap<String,Deserializer> _deserializerClassMap
     = new HashMap<String,Deserializer>();
@@ -106,8 +110,8 @@ public class ContextSerializerFactory
   private final ConcurrentHashMap<String,Deserializer> _customDeserializerMap
     = new ConcurrentHashMap<String,Deserializer>();
 
-  private final HashMap<Class,Deserializer> _deserializerInterfaceMap
-    = new HashMap<Class,Deserializer>();
+  private final HashMap<Class<?>,Deserializer> _deserializerInterfaceMap
+    = new HashMap<Class<?>,Deserializer>();
 
   public ContextSerializerFactory(ContextSerializerFactory parent,
                                   ClassLoader loader)
@@ -115,7 +119,7 @@ public class ContextSerializerFactory
     if (loader == null)
       loader = _systemClassLoader;
 
-    _loader = loader;
+    _loaderRef = new WeakReference<ClassLoader>(loader);
 
     init();
   }
@@ -154,7 +158,12 @@ public class ContextSerializerFactory
 
   public ClassLoader getClassLoader()
   {
-    return _loader;
+    WeakReference<ClassLoader> loaderRef = _loaderRef;
+    
+    if (loaderRef != null)
+      return loaderRef.get();
+    else
+      return null;
   }
 
   /**
@@ -424,6 +433,7 @@ public class ContextSerializerFactory
 
     addBasic(boolean[].class, "[boolean", BasicSerializer.BOOLEAN_ARRAY);
     addBasic(byte[].class, "[byte", BasicSerializer.BYTE_ARRAY);
+    _staticSerializerMap.put(byte[].class.getName(), ByteArraySerializer.SER);
     addBasic(short[].class, "[short", BasicSerializer.SHORT_ARRAY);
     addBasic(int[].class, "[int", BasicSerializer.INTEGER_ARRAY);
     addBasic(long[].class, "[long", BasicSerializer.LONG_ARRAY);
@@ -454,6 +464,9 @@ public class ContextSerializerFactory
     } catch (Throwable e) {
     }
     */
+    
+    _staticSerializerMap.put(InetAddress.class.getName(),
+                             InetAddressSerializer.create());
 
     _staticSerializerMap.put(java.sql.Date.class.getName(),
                              new SqlDateSerializer());

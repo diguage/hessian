@@ -46,57 +46,40 @@
  * @author Scott Ferguson
  */
 
-package com.caucho.hessian.jmx;
+package com.caucho.hessian.io;
 
-import com.caucho.hessian.io.AbstractDeserializer;
-import com.caucho.hessian.io.AbstractHessianInput;
-
-import javax.management.MBeanParameterInfo;
 import java.io.IOException;
+import java.util.ArrayList;
 
 /**
- * Deserializing an MBeanParameterInfo valued object
+ * Deserializing a JDK 1.2 Collection.
  */
-public class MBeanParameterInfoDeserializer extends AbstractDeserializer {
-  public Class getType()
+public class IteratorDeserializer extends AbstractListDeserializer {
+  private static IteratorDeserializer _deserializer;
+
+  public static IteratorDeserializer create()
   {
-    return MBeanParameterInfo.class;
+    if (_deserializer == null)
+      _deserializer = new IteratorDeserializer();
+
+    return _deserializer;
   }
   
-  public Object readMap(AbstractHessianInput in)
+  @Override
+  public Object readList(AbstractHessianInput in, int length)
     throws IOException
   {
-    String name = null;
-    String type = null;
-    String description = null;
-    boolean isRead = false;
-    boolean isWrite = false;
-    boolean isIs = false;
-    
-    while (! in.isEnd()) {
-      String key = in.readString();
+    ArrayList list = new ArrayList();
 
-      if ("name".equals(key))
-        name = in.readString();
-      else if ("type".equals(key))
-        type = in.readString();
-      else if ("description".equals(key))
-        description = in.readString();
-      else {
-        in.readObject();
-      }
-    }
+    in.addRef(list);
 
-    in.readMapEnd();
+    while (! in.isEnd())
+      list.add(in.readObject());
 
-    try {
-      MBeanParameterInfo info;
+    in.readEnd();
 
-      info = new MBeanParameterInfo(name, type, description);
-
-      return info;
-    } catch (Exception e) {
-      throw new IOException(String.valueOf(e));
-    }
+    return list.iterator();
   }
 }
+
+

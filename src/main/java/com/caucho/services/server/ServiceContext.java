@@ -50,15 +50,19 @@ package com.caucho.services.server;
 
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+
 import java.util.HashMap;
 
 /**
  * Context for a service, to handle request-specific information.
  */
 public class ServiceContext {
-  private static final ThreadLocal _localContext = new ThreadLocal();
+  private static final ThreadLocal<ServiceContext> _localContext
+    = new ThreadLocal<ServiceContext>();
 
   private ServletRequest _request;
+  private ServletResponse _response;
   private String _serviceName;
   private String _objectId;
   private int _count;
@@ -76,8 +80,9 @@ public class ServiceContext {
    * @param objectId the object identifier
    */
   public static void begin(ServletRequest request,
-			   String serviceName,
-			   String objectId)
+                           ServletResponse response,
+                           String serviceName,
+                           String objectId)
     throws ServletException
   {
     ServiceContext context = (ServiceContext) _localContext.get();
@@ -88,6 +93,7 @@ public class ServiceContext {
     }
 
     context._request = request;
+    context._response = response;
     context._serviceName = serviceName;
     context._objectId = objectId;
     context._count++;
@@ -144,6 +150,19 @@ public class ServiceContext {
   }
 
   /**
+   * Returns the service request.
+   */
+  public static ServletResponse getContextResponse()
+  {
+    ServiceContext context = (ServiceContext) _localContext.get();
+
+    if (context != null)
+      return context._response;
+    else
+      return null;
+  }
+
+  /**
    * Returns the service id, corresponding to the pathInfo of the URL.
    */
   public static String getContextServiceName()
@@ -178,8 +197,11 @@ public class ServiceContext {
 
     if (context != null && --context._count == 0) {
       context._request = null;
+      context._response = null;
 
       context._headers.clear();
+      
+      _localContext.set(null);
     }
   }
 

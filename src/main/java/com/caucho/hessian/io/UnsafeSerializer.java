@@ -49,10 +49,8 @@
 package com.caucho.hessian.io;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.lang.ref.SoftReference;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.WeakHashMap;
@@ -60,6 +58,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import sun.misc.Unsafe;
+
+import com.caucho.hessian.HessianUnshared;
 
 /**
  * Serializing an object for known object types.
@@ -70,12 +70,10 @@ public class UnsafeSerializer extends AbstractSerializer
     = Logger.getLogger(UnsafeSerializer.class.getName());
 
   private static boolean _isEnabled;
-  private static Unsafe _unsafe;
+  private static final Unsafe _unsafe;
   
   private static final WeakHashMap<Class<?>,SoftReference<UnsafeSerializer>> _serializerMap
     = new WeakHashMap<Class<?>,SoftReference<UnsafeSerializer>>();
-
-  private static Object []NULL_ARGS = new Object[0];
 
   private Field []_fields;
   private FieldSerializer []_fieldSerializers;
@@ -92,8 +90,6 @@ public class UnsafeSerializer extends AbstractSerializer
 
   public static UnsafeSerializer create(Class<?> cl)
   {
-    ClassLoader loader = cl.getClassLoader();
-
     synchronized (_serializerMap) {
       SoftReference<UnsafeSerializer> baseRef
         = _serializerMap.get(cl);
@@ -101,7 +97,11 @@ public class UnsafeSerializer extends AbstractSerializer
       UnsafeSerializer base = baseRef != null ? baseRef.get() : null;
 
       if (base == null) {
-        base = new UnsafeSerializer(cl);
+        if (cl.isAnnotationPresent(HessianUnshared.class))
+          base = new UnsafeUnsharedSerializer(cl);
+        else
+          base = new UnsafeSerializer(cl);
+        
         baseRef = new SoftReference<UnsafeSerializer>(base);
         _serializerMap.put(cl, baseRef);
       }
@@ -117,22 +117,26 @@ public class UnsafeSerializer extends AbstractSerializer
 
     for (; cl != null; cl = cl.getSuperclass()) {
       Field []fields = cl.getDeclaredFields();
+      
       for (int i = 0; i < fields.length; i++) {
         Field field = fields[i];
-
+        
         if (Modifier.isTransient(field.getModifiers())
-            || Modifier.isStatic(field.getModifiers()))
+            || Modifier.isStatic(field.getModifiers())) {
           continue;
+        }
 
         // XXX: could parameterize the handler to only deal with public
         field.setAccessible(true);
 
         if (field.getType().isPrimitive()
             || (field.getType().getName().startsWith("java.lang.")
-                && ! field.getType().equals(Object.class)))
+                && ! field.getType().equals(Object.class))) {
           primitiveFields.add(field);
-        else
+        }
+        else {
           compoundFields.add(field);
+        }
       }
     }
 
@@ -533,30 +537,32 @@ public class UnsafeSerializer extends AbstractSerializer
   
   static {
     boolean isEnabled = false;
+    Unsafe unsafe = null;
     
     try {
-      Class unsafe = Class.forName("sun.misc.Unsafe");
+      Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
       Field theUnsafe = null;
-      for (Field field : unsafe.getDeclaredFields()) {
+      for (Field field : unsafeClass.getDeclaredFields()) {
         if (field.getName().equals("theUnsafe"))
           theUnsafe = field;
       }
       
       if (theUnsafe != null) {
         theUnsafe.setAccessible(true);
-        _unsafe = (Unsafe) theUnsafe.get(null);
+        unsafe = (Unsafe) theUnsafe.get(null);
       }
       
-      isEnabled = _unsafe != null;
+      isEnabled = unsafe != null;
       
       String unsafeProp = System.getProperty("com.caucho.hessian.unsafe");
       
       if ("false".equals(unsafeProp))
         isEnabled = false;
     } catch (Throwable e) {
-      log.log(Level.FINER, e.toString(), e);
+      log.log(Level.ALL, e.toString(), e);
     }
     
+    _unsafe = unsafe;
     _isEnabled = isEnabled;
   }
 }

@@ -48,17 +48,26 @@
 
 package com.caucho.hessian.io;
 
-import com.caucho.burlap.io.BurlapRemoteObject;
-
-import java.io.*;
-import java.math.BigDecimal;
-import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.ref.SoftReference;
+import java.lang.ref.WeakReference;
+import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
-import javax.management.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import com.caucho.burlap.io.BurlapRemoteObject;
 
 /**
  * Factory for returning serialization methods.
@@ -81,7 +90,7 @@ public class SerializerFactory extends AbstractSerializerFactory
     = new WeakHashMap<ClassLoader,SoftReference<SerializerFactory>>();
 
   private ContextSerializerFactory _contextFactory;
-  private ClassLoader _loader;
+  private WeakReference<ClassLoader> _loaderRef;
 
   protected Serializer _defaultSerializer;
 
@@ -101,6 +110,8 @@ public class SerializerFactory extends AbstractSerializerFactory
   private boolean _isEnableUnsafeSerializer
     = (UnsafeSerializer.isEnabled()
         && UnsafeDeserializer.isEnabled());
+  
+  private ClassFactory _classFactory;
 
   public SerializerFactory()
   {
@@ -109,7 +120,7 @@ public class SerializerFactory extends AbstractSerializerFactory
 
   public SerializerFactory(ClassLoader loader)
   {
-    _loader = loader;
+    _loaderRef = new WeakReference<ClassLoader>(loader);
 
     _contextFactory = ContextSerializerFactory.create(loader);
   }
@@ -141,7 +152,7 @@ public class SerializerFactory extends AbstractSerializerFactory
 
   public ClassLoader getClassLoader()
   {
-    return _loader;
+    return _loaderRef.get();
   }
 
   /**
@@ -201,6 +212,23 @@ public class SerializerFactory extends AbstractSerializerFactory
     else
       return serializer;
   }
+  
+  public Class<?> loadSerializedClass(String className)
+    throws ClassNotFoundException
+  {
+    return getClassFactory().load(className);
+  }
+  
+  public ClassFactory getClassFactory()
+  {
+    synchronized (this) {
+      if (_classFactory == null) {
+        _classFactory = new ClassFactory(getClassLoader());
+      }
+      
+      return _classFactory;
+    }
+  }
 
   /**
    * Returns the serializer for a class.
@@ -217,8 +245,9 @@ public class SerializerFactory extends AbstractSerializerFactory
     if (_cachedSerializerMap != null) {
       serializer = (Serializer) _cachedSerializerMap.get(cl);
 
-      if (serializer != null)
+      if (serializer != null) {
         return serializer;
+      }
     }
 
     serializer = loadSerializer(cl);
@@ -231,7 +260,7 @@ public class SerializerFactory extends AbstractSerializerFactory
     return serializer;
   }
 
-  protected Serializer loadSerializer(Class cl)
+  protected Serializer loadSerializer(Class<?> cl)
     throws HessianProtocolException
   {
     Serializer serializer = null;
@@ -265,21 +294,24 @@ public class SerializerFactory extends AbstractSerializerFactory
 
     serializer = factory.getCustomSerializer(cl);
 
-    if (serializer != null)
+    if (serializer != null) {
       return serializer;
-
-    if (HessianRemoteObject.class.isAssignableFrom(cl))
+    }
+    
+    if (HessianRemoteObject.class.isAssignableFrom(cl)) {
       return new RemoteSerializer();
-
-    else if (BurlapRemoteObject.class.isAssignableFrom(cl))
+    }
+    else if (BurlapRemoteObject.class.isAssignableFrom(cl)) {
       return new RemoteSerializer();
-
+    }
+    else if (InetAddress.class.isAssignableFrom(cl)) {
+      return InetAddressSerializer.create();
+    }
     else if (JavaSerializer.getWriteReplace(cl) != null) {
       Serializer baseSerializer = getDefaultSerializer(cl);
       
-      return new WriteReplaceSerializer(cl, _loader, baseSerializer);
+      return new WriteReplaceSerializer(cl, getClassLoader(), baseSerializer);
     }
-
     else if (Map.class.isAssignableFrom(cl)) {
       if (_mapSerializer == null)
         _mapSerializer = new MapSerializer();
@@ -308,7 +340,7 @@ public class SerializerFactory extends AbstractSerializerFactory
 
     else if (Calendar.class.isAssignableFrom(cl))
       return CalendarSerializer.SER;
-
+    
     else if (Enumeration.class.isAssignableFrom(cl))
       return EnumerationSerializer.create();
 
@@ -415,26 +447,29 @@ public class SerializerFactory extends AbstractSerializerFactory
     if (Collection.class.isAssignableFrom(cl))
       deserializer = new CollectionDeserializer(cl);
 
-    else if (Map.class.isAssignableFrom(cl))
+    else if (Map.class.isAssignableFrom(cl)) {
       deserializer = new MapDeserializer(cl);
-
-    else if (Annotation.class.isAssignableFrom(cl))
+    }
+    else if (Iterator.class.isAssignableFrom(cl)) {
+      deserializer = IteratorDeserializer.create();
+    }
+    else if (Annotation.class.isAssignableFrom(cl)) {
       deserializer = new AnnotationDeserializer(cl);
-
-    else if (cl.isInterface())
+    }
+    else if (cl.isInterface()) {
       deserializer = new ObjectDeserializer(cl);
-
-    else if (cl.isArray())
+    }
+    else if (cl.isArray()) {
       deserializer = new ArrayDeserializer(cl.getComponentType());
-
-    else if (Enumeration.class.isAssignableFrom(cl))
+    }
+    else if (Enumeration.class.isAssignableFrom(cl)) {
       deserializer = EnumerationDeserializer.create();
-
+    }
     else if (Enum.class.isAssignableFrom(cl))
       deserializer = new EnumDeserializer(cl);
 
     else if (Class.class.equals(cl))
-      deserializer = new ClassDeserializer(_loader);
+      deserializer = new ClassDeserializer(getClassLoader());
 
     else
       deserializer = getDefaultDeserializer(cl);
@@ -663,10 +698,13 @@ public class SerializerFactory extends AbstractSerializerFactory
     }
     else {
       try {
-        Class cl = Class.forName(type, false, _loader);
+        //Class cl = Class.forName(type, false, getClassLoader());
+        
+        Class cl = loadSerializedClass(type);
+        
         deserializer = getDeserializer(cl);
       } catch (Exception e) {
-        log.warning("Hessian/Burlap: '" + type + "' is an unknown class in " + _loader + ":\n" + e);
+        log.warning("Hessian/Burlap: '" + type + "' is an unknown class in " + getClassLoader() + ":\n" + e);
 
         log.log(Level.FINER, e.toString(), e);
       }
@@ -684,9 +722,10 @@ public class SerializerFactory extends AbstractSerializerFactory
     return deserializer;
   }
 
-  private static void addBasic(Class cl, String typeName, int type)
+  private static void addBasic(Class<?> cl, String typeName, int type)
   {
     Deserializer deserializer = new BasicDeserializer(type);
+    
     _staticTypeMap.put(typeName, deserializer);
   }
 
@@ -704,6 +743,7 @@ public class SerializerFactory extends AbstractSerializerFactory
     addBasic(Double.class, "double", BasicSerializer.DOUBLE);
     addBasic(Character.class, "char", BasicSerializer.CHARACTER_OBJECT);
     addBasic(String.class, "string", BasicSerializer.STRING);
+    addBasic(StringBuilder.class, "string", BasicSerializer.STRING_BUILDER);
     addBasic(Object.class, "object", BasicSerializer.OBJECT);
     addBasic(java.util.Date.class, "date", BasicSerializer.DATE);
 

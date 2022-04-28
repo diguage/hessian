@@ -49,15 +49,10 @@
 package com.caucho.hessian.io;
 
 import java.io.IOException;
-import java.io.Serializable;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
+import java.lang.reflect.Method;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import com.caucho.hessian.HessianException;
 
 /**
  * Serializing an object for known object types.
@@ -67,15 +62,13 @@ public class WriteReplaceSerializer extends AbstractSerializer
   private static final Logger log
     = Logger.getLogger(WriteReplaceSerializer.class.getName());
 
-  private static Object []NULL_ARGS = new Object[0];
-
   private Object _writeReplaceFactory;
   private Method _writeReplace;
   private Serializer _baseSerializer;
   
   public WriteReplaceSerializer(Class<?> cl,
-				ClassLoader loader,
-				Serializer baseSerializer)
+                                ClassLoader loader,
+                                Serializer baseSerializer)
   {
     introspectWriteReplace(cl, loader);
     
@@ -94,8 +87,8 @@ public class WriteReplaceSerializer extends AbstractSerializer
       Method writeReplace = getWriteReplace(serializerClass, cl);
 
       if (writeReplace != null) {
-	_writeReplaceFactory = serializerObject;
-	_writeReplace = writeReplace;
+        _writeReplaceFactory = serializerObject;
+        _writeReplace = writeReplace;
       }
     } catch (ClassNotFoundException e) {
     } catch (Exception e) {
@@ -110,14 +103,14 @@ public class WriteReplaceSerializer extends AbstractSerializer
   /**
    * Returns the writeReplace method
    */
-  protected static Method getWriteReplace(Class cl, Class param)
+  protected static Method getWriteReplace(Class<?> cl, Class<?> param)
   {
     for (; cl != null; cl = cl.getSuperclass()) {
       for (Method method : cl.getDeclaredMethods()) {
-	if (method.getName().equals("writeReplace")
-	    && method.getParameterTypes().length == 1
-	    && param.equals(method.getParameterTypes()[0]))
-	  return method;
+        if (method.getName().equals("writeReplace")
+            && method.getParameterTypes().length == 1
+            && param.equals(method.getParameterTypes()[0]))
+          return method;
       }
     }
 
@@ -127,23 +120,24 @@ public class WriteReplaceSerializer extends AbstractSerializer
   /**
    * Returns the writeReplace method
    */
-  protected static Method getWriteReplace(Class cl)
+  protected static Method getWriteReplace(Class<?> cl)
   {
     for (; cl != null; cl = cl.getSuperclass()) {
       Method []methods = cl.getDeclaredMethods();
       
       for (int i = 0; i < methods.length; i++) {
-	Method method = methods[i];
+        Method method = methods[i];
 
-	if (method.getName().equals("writeReplace") &&
-	    method.getParameterTypes().length == 0)
-	  return method;
+        if (method.getName().equals("writeReplace") &&
+            method.getParameterTypes().length == 0)
+          return method;
       }
     }
 
     return null;
   }
-  
+
+  @Override
   public void writeObject(Object obj, AbstractHessianOutput out)
     throws IOException
   {
@@ -166,6 +160,7 @@ public class WriteReplaceSerializer extends AbstractSerializer
         }
         
         _baseSerializer.writeObject(obj, out);
+
         return;
       }
 

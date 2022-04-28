@@ -22,7 +22,7 @@
  *    Alternately, this acknowlegement may appear in the software itself,
  *    if and wherever such third-party acknowlegements normally appear.
  *
- * 4. The names "Hessian", "Resin", and "Caucho" must not be used to
+ * 4. The names "Burlap", "Resin", and "Caucho" must not be used to
  *    endorse or promote products derived from this software without prior
  *    written permission. For written permission, please contact
  *    info@caucho.com.
@@ -46,57 +46,37 @@
  * @author Scott Ferguson
  */
 
-package com.caucho.hessian.jmx;
+package com.caucho.hessian.io;
 
-import com.caucho.hessian.io.AbstractDeserializer;
-import com.caucho.hessian.io.AbstractHessianInput;
-
-import javax.management.MBeanParameterInfo;
 import java.io.IOException;
 
 /**
- * Deserializing an MBeanParameterInfo valued object
+ * Serializing an object for known object types.
  */
-public class MBeanParameterInfoDeserializer extends AbstractDeserializer {
-  public Class getType()
+public class ByteArraySerializer extends AbstractSerializer
+  implements ObjectSerializer
+{
+  public static final ByteArraySerializer SER = new ByteArraySerializer();
+  
+  private ByteArraySerializer()
   {
-    return MBeanParameterInfo.class;
+  }
+
+  @Override
+  public Serializer getObjectSerializer()
+  {
+    return this;
   }
   
-  public Object readMap(AbstractHessianInput in)
+  @Override
+  public void writeObject(Object obj, AbstractHessianOutput out)
     throws IOException
   {
-    String name = null;
-    String type = null;
-    String description = null;
-    boolean isRead = false;
-    boolean isWrite = false;
-    boolean isIs = false;
+    byte []data = (byte []) obj;
     
-    while (! in.isEnd()) {
-      String key = in.readString();
-
-      if ("name".equals(key))
-        name = in.readString();
-      else if ("type".equals(key))
-        type = in.readString();
-      else if ("description".equals(key))
-        description = in.readString();
-      else {
-        in.readObject();
-      }
-    }
-
-    in.readMapEnd();
-
-    try {
-      MBeanParameterInfo info;
-
-      info = new MBeanParameterInfo(name, type, description);
-
-      return info;
-    } catch (Exception e) {
-      throw new IOException(String.valueOf(e));
-    }
+    if (data != null)
+      out.writeBytes(data, 0, data.length);
+    else
+      out.writeNull();
   }
 }

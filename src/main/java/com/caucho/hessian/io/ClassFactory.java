@@ -48,112 +48,127 @@
 
 package com.caucho.hessian.io;
 
-import java.io.IOException;
-import java.util.*;
-import java.lang.reflect.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.regex.Pattern;
 
 /**
- * Deserializing a JDK 1.2 Map.
+ * Loads a class from the classloader.
  */
-public class MapDeserializer extends AbstractMapDeserializer {
-  private Class<?> _type;
-  private Constructor<?> _ctor;
+public class ClassFactory
+{
+  private static ArrayList<Allow> _staticAllowList;
   
-  public MapDeserializer(Class<?> type)
+  private ClassLoader _loader;
+  private boolean _isWhitelist;
+  
+  private ArrayList<Allow> _allowList;
+  
+  ClassFactory(ClassLoader loader)
   {
-    if (type == null)
-      type = HashMap.class;
-    
-    _type = type;
-
-    Constructor<?> []ctors = type.getConstructors();
-    for (int i = 0; i < ctors.length; i++) {
-      if (ctors[i].getParameterTypes().length == 0)
-        _ctor = ctors[i];
-    }
-
-    if (_ctor == null) {
-      try {
-        _ctor = HashMap.class.getConstructor(new Class[0]);
-      } catch (Exception e) {
-        throw new IllegalStateException(e);
-      }
-    }
+    _loader = loader;
   }
   
-  public Class<?> getType()
+  public Class<?> load(String className)
+    throws ClassNotFoundException
   {
-    if (_type != null)
-      return _type;
-    else
+    if (isAllow(className)) {
+      return Class.forName(className, false, _loader);
+    }
+    else {
       return HashMap.class;
+    }
   }
-
-  public Object readMap(AbstractHessianInput in)
-    throws IOException
+  
+  private boolean isAllow(String className)
   {
-    Map map;
+    ArrayList<Allow> allowList = _allowList;
     
-    if (_type == null)
-      map = new HashMap();
-    else if (_type.equals(Map.class))
-      map = new HashMap();
-    else if (_type.equals(SortedMap.class))
-      map = new TreeMap();
-    else {
-      try {
-        map = (Map) _ctor.newInstance();
-      } catch (Exception e) {
-        throw new IOExceptionWrapper(e);
-      }
+    if (allowList == null) {
+      return true;
     }
-
-    in.addRef(map);
-
-    while (! in.isEnd()) {
-      map.put(in.readObject(), in.readObject());
-    }
-
-    in.readEnd();
-
-    return map;
-  }
-
-  @Override
-  public Object readObject(AbstractHessianInput in,
-                           Object []fields)
-    throws IOException
-  {
-    String []fieldNames = (String []) fields;
-    Map<Object,Object> map = createMap();
+    
+    int size = allowList.size();
+    for (int i = 0; i < size; i++) {
+      Allow allow = allowList.get(i);
       
-    int ref = in.addRef(map);
-
-    for (int i = 0; i < fieldNames.length; i++) {
-      String name = fieldNames[i];
-
-      map.put(name, in.readObject());
-    }
-
-    return map;
-  }
-
-  private Map createMap()
-    throws IOException
-  {
-    
-    if (_type == null)
-      return new HashMap();
-    else if (_type.equals(Map.class))
-      return new HashMap();
-    else if (_type.equals(SortedMap.class))
-      return new TreeMap();
-    else {
-      try {
-        return (Map) _ctor.newInstance();
-      } catch (Exception e) {
-        throw new IOExceptionWrapper(e);
+      Boolean isAllow = allow.allow(className);
+      
+      if (isAllow != null) {
+        return isAllow;
       }
     }
+    
+    return false;
+  }
+  
+  public void setWhitelist(boolean isWhitelist)
+  {
+    _isWhitelist = isWhitelist;
+    
+    initAllow();
+  }
+  
+  public void allow(String pattern)
+  {
+    initAllow();
+    
+    synchronized (this) {
+      _allowList.add(new Allow(toPattern(pattern), true));
+    }
+  }
+  
+  public void deny(String pattern)
+  {
+    initAllow();
+    
+    synchronized (this) {
+      _allowList.add(new Allow(toPattern(pattern), false));
+    }
+  }
+  
+  private String toPattern(String pattern)
+  {
+    pattern = pattern.replace(".", "\\.");
+    pattern = pattern.replace("*", ".*");
+    
+    return pattern;
+  }
+  
+  private void initAllow()
+  {
+    synchronized (this) {
+      if (_allowList == null) {
+        _allowList = new ArrayList<Allow>();
+        _allowList.addAll(_staticAllowList);
+      }
+    }
+  }
+  
+  static class Allow {
+    private Boolean _isAllow;
+    private Pattern _pattern;
+    
+    private Allow(String pattern, boolean isAllow)
+    {
+      _isAllow = isAllow;
+      _pattern = Pattern.compile(pattern);
+    }
+    
+    Boolean allow(String className)
+    {
+      if (_pattern.matcher(className).matches()) {
+        return _isAllow;
+      }
+      else {
+        return null;
+      }
+    }
+  }
+  
+  static {
+    _staticAllowList = new ArrayList<Allow>();
+    
+    _staticAllowList.add(new Allow("java\\..+", true));
   }
 }

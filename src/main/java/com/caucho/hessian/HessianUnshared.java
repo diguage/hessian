@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001-2004 Caucho Technology, Inc.  All rights reserved.
+ * Copyright (c) 2001-2008 Caucho Technology, Inc.  All rights reserved.
  *
  * The Apache Software License, Version 1.1
  *
@@ -46,57 +46,23 @@
  * @author Scott Ferguson
  */
 
-package com.caucho.hessian.jmx;
 
-import com.caucho.hessian.io.AbstractDeserializer;
-import com.caucho.hessian.io.AbstractHessianInput;
+package com.caucho.hessian;
 
-import javax.management.MBeanParameterInfo;
-import java.io.IOException;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * Deserializing an MBeanParameterInfo valued object
+ * Marks the class and all children as unshared.
+ * A reference item will be created, but will not be stored in a 
+ * mapped or checked for duplicated.
+ * 
+ * Used for efficiency to avoid the cost of the map lookup.
  */
-public class MBeanParameterInfoDeserializer extends AbstractDeserializer {
-  public Class getType()
-  {
-    return MBeanParameterInfo.class;
-  }
-  
-  public Object readMap(AbstractHessianInput in)
-    throws IOException
-  {
-    String name = null;
-    String type = null;
-    String description = null;
-    boolean isRead = false;
-    boolean isWrite = false;
-    boolean isIs = false;
-    
-    while (! in.isEnd()) {
-      String key = in.readString();
-
-      if ("name".equals(key))
-        name = in.readString();
-      else if ("type".equals(key))
-        type = in.readString();
-      else if ("description".equals(key))
-        description = in.readString();
-      else {
-        in.readObject();
-      }
-    }
-
-    in.readMapEnd();
-
-    try {
-      MBeanParameterInfo info;
-
-      info = new MBeanParameterInfo(name, type, description);
-
-      return info;
-    } catch (Exception e) {
-      throw new IOException(String.valueOf(e));
-    }
-  }
+@Target({ElementType.TYPE })
+@Retention(RetentionPolicy.RUNTIME)
+public @interface HessianUnshared
+{
 }

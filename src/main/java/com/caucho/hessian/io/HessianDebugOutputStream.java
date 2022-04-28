@@ -61,6 +61,9 @@ import java.util.logging.Level;
  */
 public class HessianDebugOutputStream extends OutputStream
 {
+  private static final Logger log
+    = Logger.getLogger(HessianDebugOutputStream.class.getName());
+  
   private OutputStream _os;
   
   private HessianDebugState _state;
@@ -82,6 +85,19 @@ public class HessianDebugOutputStream extends OutputStream
   {
     this(os, new PrintWriter(new LogWriter(log, level)));
   }
+  
+  /**
+   * Creates an uninitialized Hessian input stream.
+   */
+  public HessianDebugOutputStream(Logger log, Level level)
+  {
+    this(null, new PrintWriter(new LogWriter(log, level)));
+  }
+  
+  public void initPacket(OutputStream os)
+  {
+    _os = os;
+  }
 
   public void startTop2()
   {
@@ -96,6 +112,7 @@ public class HessianDebugOutputStream extends OutputStream
   /**
    * Writes a character.
    */
+  @Override
   public void write(int ch)
     throws IOException
   {
@@ -103,9 +120,14 @@ public class HessianDebugOutputStream extends OutputStream
     
     _os.write(ch);
 
-    _state.next(ch);
+    try {
+      _state.next(ch);
+    } catch (Exception e) {
+      log.log(Level.WARNING, e.toString(), e);
+    }
   }
 
+  @Override
   public void flush()
     throws IOException
   {
@@ -115,6 +137,7 @@ public class HessianDebugOutputStream extends OutputStream
   /**
    * closes the stream.
    */
+  @Override
   public void close()
     throws IOException
   {
@@ -143,24 +166,24 @@ public class HessianDebugOutputStream extends OutputStream
     public void write(char ch)
     {
       if (ch == '\n' && _sb.length() > 0) {
-	_log.log(_level, _sb.toString());
-	_sb.setLength(0);
+        _log.log(_level, _sb.toString());
+        _sb.setLength(0);
       }
       else
-	_sb.append((char) ch);
+        _sb.append((char) ch);
     }
 
     public void write(char []buffer, int offset, int length)
     {
       for (int i = 0; i < length; i++) {
-	char ch = buffer[offset + i];
-	
-	if (ch == '\n' && _sb.length() > 0) {
-	  _log.log(_level, _sb.toString());
-	  _sb.setLength(0);
-	}
-	else
-	  _sb.append((char) ch);
+        char ch = buffer[offset + i];
+
+        if (ch == '\n' && _sb.length() > 0) {
+          _log.log(_level, _sb.toString());
+          _sb.setLength(0);
+        }
+        else
+          _sb.append((char) ch);
       }
     }
 

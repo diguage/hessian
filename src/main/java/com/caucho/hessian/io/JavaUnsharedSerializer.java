@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001-2004 Caucho Technology, Inc.  All rights reserved.
+ * Copyright (c) 2001-2008 Caucho Technology, Inc.  All rights reserved.
  *
  * The Apache Software License, Version 1.1
  *
@@ -22,7 +22,7 @@
  *    Alternately, this acknowlegement may appear in the software itself,
  *    if and wherever such third-party acknowlegements normally appear.
  *
- * 4. The names "Hessian", "Resin", and "Caucho" must not be used to
+ * 4. The names "Burlap", "Resin", and "Caucho" must not be used to
  *    endorse or promote products derived from this software without prior
  *    written permission. For written permission, please contact
  *    info@caucho.com.
@@ -46,57 +46,41 @@
  * @author Scott Ferguson
  */
 
-package com.caucho.hessian.jmx;
+package com.caucho.hessian.io;
 
-import com.caucho.hessian.io.AbstractDeserializer;
-import com.caucho.hessian.io.AbstractHessianInput;
-
-import javax.management.MBeanParameterInfo;
 import java.io.IOException;
+import java.lang.ref.SoftReference;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.WeakHashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
- * Deserializing an MBeanParameterInfo valued object
+ * Serializing an object for known object types.
  */
-public class MBeanParameterInfoDeserializer extends AbstractDeserializer {
-  public Class getType()
+public class JavaUnsharedSerializer extends JavaSerializer
+{
+  private static final Logger log
+    = Logger.getLogger(JavaUnsharedSerializer.class.getName());
+  
+  public JavaUnsharedSerializer(Class<?> cl)
   {
-    return MBeanParameterInfo.class;
+    super(cl);
   }
   
-  public Object readMap(AbstractHessianInput in)
+  @Override
+  public void writeObject(Object obj, AbstractHessianOutput out)
     throws IOException
   {
-    String name = null;
-    String type = null;
-    String description = null;
-    boolean isRead = false;
-    boolean isWrite = false;
-    boolean isIs = false;
+    boolean oldUnshared = out.setUnshared(true);
     
-    while (! in.isEnd()) {
-      String key = in.readString();
-
-      if ("name".equals(key))
-        name = in.readString();
-      else if ("type".equals(key))
-        type = in.readString();
-      else if ("description".equals(key))
-        description = in.readString();
-      else {
-        in.readObject();
-      }
-    }
-
-    in.readMapEnd();
-
     try {
-      MBeanParameterInfo info;
-
-      info = new MBeanParameterInfo(name, type, description);
-
-      return info;
-    } catch (Exception e) {
-      throw new IOException(String.valueOf(e));
+      super.writeObject(obj, out);
+    } finally {
+      out.setUnshared(oldUnshared);
     }
   }
 }

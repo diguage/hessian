@@ -96,14 +96,36 @@ public class HessianFactory
 
     return _serializerFactory;
   }
+  
+  public void setWhitelist(boolean isWhitelist)
+  {
+    getSerializerFactory().getClassFactory().setWhitelist(isWhitelist);
+  }
+  
+  public void allow(String pattern)
+  {
+    getSerializerFactory().getClassFactory().allow(pattern);
+  }
+  
+  public void deny(String pattern)
+  {
+    getSerializerFactory().getClassFactory().deny(pattern);
+  }
 
   /**
    * Creates a new Hessian 2.0 deserializer.
    */
   public Hessian2Input createHessian2Input(InputStream is)
   {
-    Hessian2Input in = new Hessian2Input(is);
-    in.setSerializerFactory(_serializerFactory);
+    Hessian2Input in = _freeHessian2Input.allocate();
+    
+    if (in == null) {
+      in = new Hessian2Input(is);
+      in.setSerializerFactory(getSerializerFactory());
+    }
+    else {
+      in.init(is);
+    }
 
     return in;
   }
@@ -113,14 +135,12 @@ public class HessianFactory
    */
   public void freeHessian2Input(Hessian2Input in)
   {
-    /*
     if (in == null)
       return;
 
     in.free();
 
     _freeHessian2Input.free(in);
-    */
   }
 
   /**
@@ -129,7 +149,7 @@ public class HessianFactory
   public Hessian2StreamingInput createHessian2StreamingInput(InputStream is)
   {
     Hessian2StreamingInput in = new Hessian2StreamingInput(is);
-    in.setSerializerFactory(_serializerFactory);
+    in.setSerializerFactory(getSerializerFactory());
 
     return in;
   }
@@ -154,14 +174,25 @@ public class HessianFactory
    */
   public Hessian2Output createHessian2Output(OutputStream os)
   {
+    Hessian2Output out = createHessian2Output();
+    
+    out.init(os);
+    
+    return out;
+  }
+
+  /**
+   * Creates a new Hessian 2.0 serializer.
+   */
+  public Hessian2Output createHessian2Output()
+  {
     Hessian2Output out = _freeHessian2Output.allocate();
 
-    if (out != null)
-      out.init(os);
-    else
-      out = new Hessian2Output(os);
+    if (out == null) {
+      out = new Hessian2Output();
 
-    out.setSerializerFactory(_serializerFactory);
+      out.setSerializerFactory(getSerializerFactory());
+    }
 
     return out;
   }
