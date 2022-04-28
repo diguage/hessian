@@ -3,3 +3,8 @@
 Hessian -- The source code of Hessian Library.
 
 Download the src library from http://hessian.caucho.com/#Java[Hessian Binary Web Service Protocol^], and decompress it, then push it to the repo.
+
+== Refenences
+
+. http://hessian.caucho.com/#Java[Hessian Binary Web Service Protocol^]
+. http://svn.caucho.com/resin-doc/admin/hessian.xtp[Hessian^]
