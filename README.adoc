@@ -8,3 +8,12 @@ Download the src library from http://hessian.caucho.com/#Java[Hessian Binary Web
 
 . http://hessian.caucho.com/#Java[Hessian Binary Web Service Protocol^]
 . http://svn.caucho.com/resin-doc/admin/hessian.xtp[Hessian^]
+
+== Interpretations
+
+Hessian 的序列化协议写的非常不严谨，甚至有很多错误支持。结合本仓库的源码，解释并实践了一下 Hessian 的序列化协议。文章目录如下：
+
+. https://www.diguage.com/post/hessian-protocol-interpretation-and-practice-1/[Hessian 协议解释与实战（一）：布尔、日期、浮点数与整数^] -- 介绍布尔型数据、日期类型、浮点类型数据和整数类型数据等四种类型的数据的处理。
+. https://www.diguage.com/post/hessian-protocol-interpretation-and-practice-2/[Hessian 协议解释与实战（二）：长整型、二进制数据与 Null^] -- 介绍长整数类型数据、二进制数据和 `null` 等三种类型的数据的处理。
+. https://www.diguage.com/post/hessian-protocol-interpretation-and-practice-3/[Hessian 协议解释与实战（三）：字符串^] -- 专门介绍了关于字符串的处理。由于字符串需要铺垫的基础知识比较多，处理细节也有繁琐，所以单独成篇来介绍。
+. 未完待续，敬请继续关注 https://www.diguage.com/["地瓜哥"博客网^]。
