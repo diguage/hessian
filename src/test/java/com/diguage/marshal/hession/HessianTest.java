@@ -12,10 +12,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
@@ -30,10 +27,32 @@ public class HessianTest {
 
     @Test
     public void test() throws Throwable {
-        BigDecimal money = new BigDecimal("12.3456").setScale(2, BigDecimal.ROUND_HALF_UP);
-        User user = new User(1, "diguage", new Date(), money);
+        BigDecimal money = new BigDecimal("1234.56789").setScale(2, BigDecimal.ROUND_HALF_UP);
+        int id = 4;
+        String name = "diguage";
+        Date date = new Date();
+        User user = new User(id, name, date, money);
+        intTo(id);
+        // Hessian 在编码 String 字符串时，在小于32个字符时，前面的长度标志位，
+        // 直接使用 int 的二进制表示，取后八位，所以打印出来和数字一样。
+        stringTo(name);
+        // 直接取时间戳
+        dateTo(date);
+        bigDecimalTo(money);
+
         objectTo(user);
     }
+
+    public void bigDecimalTo(BigDecimal value) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        Hessian2Output out = getHessian2Output(bos);
+        out.writeObject(value);
+        out.close();
+        byte[] result = bos.toByteArray();
+        System.out.println("\n== BigDecimal: " + value + " ==");
+        printBytes(result);
+    }
+
     /**
      * 测试 enum 进行 Hessian 序列化
      *
@@ -723,8 +742,10 @@ public class HessianTest {
             System.out.println("== Key Object: " + key.getClass().getName() + "  ==");
             System.out.println("== Val Object: " + val.getClass().getName() + "  ==");
         }
-        System.out.println(toJson(value));
-        System.out.println("== byte array: hessian result ==");
+        String json = toJson(value);
+        System.out.println("== object: json length=" + json.length() + " ==");
+        System.out.println(json);
+        System.out.println("== object: msgpack result ==");
         printBytes(result);
     }
 
@@ -738,6 +759,7 @@ public class HessianTest {
         ObjectMapper mapper = new ObjectMapper();
         // 序列化字段
         mapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
+        mapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"));
         try {
             return mapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {

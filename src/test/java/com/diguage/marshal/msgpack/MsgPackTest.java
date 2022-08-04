@@ -1,6 +1,5 @@
 package com.diguage.marshal.msgpack;
 
-import com.caucho.hessian.io.Hessian2Output;
 import com.diguage.User;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
@@ -15,16 +14,47 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
+/**
+ * 数据比对： https://github.com/eishay/jvm-serializers/wiki
+ */
 public class MsgPackTest {
+
 
     @Test
     public void test() throws Throwable {
-        BigDecimal money = new BigDecimal("12.3456").setScale(2, BigDecimal.ROUND_HALF_UP);
-        User user = new User(1, "diguage", new Date(), money);
+        BigDecimal money = new BigDecimal("1234.56789").setScale(2, BigDecimal.ROUND_HALF_UP);
+        int id = 4;
+        String name = "diguage";
+        Date date = new Date();
+        User user = new User(id, name, date, money);
+        intTo(id);
+        stringTo(name);
+        // 直接取时间戳
+        dateTo(date);
+        bigDecimalTo(money);
+
         objectTo(user);
     }
+
+
+    public void dateTo(Date date) throws Throwable {
+        MessagePack pack = new MessagePack();
+        pack.register(Date.class, DateTemplate.getInstance());
+
+        long time = date.getTime();
+        byte[] result = pack.write(date);
+        DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+        System.out.println("\n== Date: " + dateFormat.format(date) + " ==");
+        System.out.println("== Date: " + time + "ms ==");
+        System.out.printf("== Date: " + getBinaryString(time) + " ms ==%n");
+
+        printBytes(result);
+    }
+
 
     /**
      * 对象序列化
@@ -55,8 +85,10 @@ public class MsgPackTest {
             System.out.println("== Key Object: " + key.getClass().getName() + "  ==");
             System.out.println("== Val Object: " + val.getClass().getName() + "  ==");
         }
-        System.out.println(toJson(value));
-        System.out.println("== byte array: hessian result ==");
+        String json = toJson(value);
+        System.out.println("== object: json length=" + json.length() + " ==");
+        System.out.println(json);
+        System.out.println("== object: msgpack result ==");
         printBytes(result);
     }
 
@@ -70,6 +102,7 @@ public class MsgPackTest {
         ObjectMapper mapper = new ObjectMapper();
         // 序列化字段
         mapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
+        mapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"));
         try {
             return mapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
@@ -84,11 +117,12 @@ public class MsgPackTest {
         bigDecimalTo(new BigDecimal("12.3456"));
     }
 
-    private void bigDecimalTo(BigDecimal value) throws IOException {
+    public void bigDecimalTo(BigDecimal value) throws IOException {
         MessagePack pack = new MessagePack();
-        System.out.println("\n\n== BigDecimal: " + value + " ==");
-        byte[] write = pack.write(value);
-        printBytes(write);
+        pack.register(BigDecimal.class, BigDecimalTemplate.getInstance());
+        byte[] result = pack.write(value);
+        System.out.println("\n== BigDecimal: " + value + " ==");
+        printBytes(result);
     }
 
     @Test
@@ -96,24 +130,25 @@ public class MsgPackTest {
 //        for (int i = -256; i < 256; i++) {
 //            printBytes(intTo(i));
 //        }
-        printBytes(intTo(-129));
-        printBytes(intTo(-128));
-        printBytes(intTo(-33));
-        printBytes(intTo(-32));
-        printBytes(intTo(127));
-        printBytes(intTo(128));
-        printBytes(intTo(255));
-        printBytes(intTo(256));
-        printBytes(intTo(1024));
-        printBytes(intTo(204800));
+        intTo(-129);
+        intTo(-128);
+        intTo(-33);
+        intTo(-32);
+        intTo(127);
+        intTo(128);
+        intTo(255);
+        intTo(256);
+        intTo(1024);
+        intTo(204800);
     }
 
-    private byte[] intTo(int value) throws IOException {
+    private void intTo(int value) throws IOException {
         System.out.println("\n== int: " + value + " ==");
         System.out.println("== int: " + getBinaryString(value) + " ==");
         MessagePack pack = new MessagePack();
-        byte[] write = pack.write(value);
-        return write;
+        byte[] bytes = pack.write(value);
+        System.out.println("== byte array: msgpack result ==");
+        printBytes(bytes);
     }
 
     @Test
@@ -181,7 +216,7 @@ public class MsgPackTest {
         }
 
         int min = 0;
-        int max = 10;
+        int max = result.length;
         System.out.println(".... " + min + " ~ " + max + " ....");
         for (; min < result.length && min < max; min++) {
             printByte(result[min]);
