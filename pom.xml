@@ -32,6 +32,13 @@
             <version>${servlet-api.version}</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>org.msgpack</groupId>
+            <artifactId>msgpack</artifactId>
+            <version>0.6.12</version>
+            <scope>test</scope>
+        </dependency>
+
 
         <dependency>
             <groupId>org.junit.platform</groupId>

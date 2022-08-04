@@ -5,6 +5,7 @@ import com.caucho.hessian.io.Hessian2Input;
 import com.caucho.hessian.io.Hessian2Output;
 import com.caucho.hessian.io.SerializerFactory;
 import com.diguage.Car;
+import com.diguage.User;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -15,6 +16,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -25,6 +27,13 @@ import java.time.ZonedDateTime;
 import java.util.*;
 
 public class HessianTest {
+
+    @Test
+    public void test() throws Throwable {
+        BigDecimal money = new BigDecimal("12.3456").setScale(2, BigDecimal.ROUND_HALF_UP);
+        User user = new User(1, "diguage", new Date(), money);
+        objectTo(user);
+    }
     /**
      * 测试 enum 进行 Hessian 序列化
      *
