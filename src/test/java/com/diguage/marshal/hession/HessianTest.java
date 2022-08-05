@@ -6,6 +6,7 @@ import com.caucho.hessian.io.Hessian2Output;
 import com.caucho.hessian.io.SerializerFactory;
 import com.diguage.Car;
 import com.diguage.User;
+import com.diguage.WebUser;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -24,6 +25,60 @@ import java.time.ZonedDateTime;
 import java.util.*;
 
 public class HessianTest {
+/**
+ * 测试“混合”集合的序列化
+ *
+ * @author D瓜哥 · https://www.diguage.com
+ */
+@Test
+public void testHybridList() throws Throwable {
+    BigDecimal money = new BigDecimal("1234.56789")
+            .setScale(2, BigDecimal.ROUND_HALF_UP);
+    int id = 4;
+    String name = "diguage";
+    Date date = new Date();
+    String site = "https://www.diguage.com";
+    User user = new User(id, name, date, money);
+    WebUser webUser = new WebUser(id, name, date, money, site);
+    Car car = new Car(name, id);
+    List<Object> hybridList = new ArrayList<>();
+    hybridList.add(webUser);
+    hybridList.add(user);
+    hybridList.add(car);
+    objectTo(hybridList);
+}
+
+    /**
+     * 测试重复字符串的序列化
+     *
+     * @author D瓜哥 · https://www.diguage.com
+     */
+    @Test
+    public void testDuplicateString() throws Throwable {
+        String string = "I'm D瓜哥，😁";
+        List<String> strings = Arrays.asList(string, string);
+        List<String> stringList = new ArrayList<>(strings);
+        objectTo(stringList);
+    }
+
+
+    /**
+     * 测试父子类的序列化
+     *
+     * @author D瓜哥 · https://www.diguage.com
+     */
+    @Test
+    public void testInheritance() throws Throwable {
+        BigDecimal money = new BigDecimal("1234.56789")
+                .setScale(2, BigDecimal.ROUND_HALF_UP);
+        int id = 4;
+        String name = "diguage";
+        Date date = new Date();
+        String site = "https://www.diguage.com";
+        WebUser webUser = new WebUser(id, name, date, money, site);
+        objectTo(webUser);
+    }
+
 
     @Test
     public void test() throws Throwable {
@@ -41,6 +96,11 @@ public class HessianTest {
         bigDecimalTo(money);
 
         objectTo(user);
+
+        List<User> users = new ArrayList<>();
+        users.add(user);
+        users.add(user);
+        objectTo(users);
     }
 
     public void bigDecimalTo(BigDecimal value) throws IOException {
@@ -507,6 +567,10 @@ public class HessianTest {
         stringTo(getStringByLength("a", 32768 + 512));
         stringTo(getStringByLength("a", 32768 + 768));
         stringTo(getStringByLength("a", 32768 + 1024));
+
+        String string = "I'm D瓜哥，😁";
+        List<String> strings = new ArrayList<>(Arrays.asList(string, string));
+        objectTo(strings);
     }
 
     private String getStringByLength(String item, int length) {
@@ -745,7 +809,7 @@ public class HessianTest {
         String json = toJson(value);
         System.out.println("== object: json length=" + json.length() + " ==");
         System.out.println(json);
-        System.out.println("== object: msgpack result ==");
+        System.out.println("== object: hessian result ==");
         printBytes(result);
     }
 
@@ -928,7 +992,7 @@ public class HessianTest {
         List<Integer> al0 = new ArrayList<>();
         objectTo(al0.iterator());
 
-        List<Integer> ints1 = new ArrayList<>(Arrays.asList(0));
+        List<Integer> ints1 = Arrays.asList(0);
         objectTo(ints1.iterator());
 
         List<Integer> ints2 = Arrays.asList(0, 1);

@@ -1,10 +1,13 @@
 package com.diguage;
 
-import org.msgpack.annotation.Message;
-
 import java.math.BigDecimal;
 import java.util.Date;
 
+/**
+ * 用户
+ *
+ * @author D瓜哥 · https://www.diguage.com
+ */
 public class User {
     private Integer id;
     private String name;

@@ -7,10 +7,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.msgpack.MessagePack;
-import org.msgpack.template.BigDecimalTemplate;
-import org.msgpack.template.DateTemplate;
+import org.msgpack.template.*;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -22,6 +20,12 @@ import java.util.*;
  * 数据比对： https://github.com/eishay/jvm-serializers/wiki
  */
 public class MsgPackTest {
+
+    public static class MyMessagePack extends MessagePack {
+        public MyMessagePack(TemplateRegistry registry) {
+            super(registry);
+        }
+    }
 
 
     @Test
@@ -38,6 +42,12 @@ public class MsgPackTest {
         bigDecimalTo(money);
 
         objectTo(user);
+
+        List<User> users = new ArrayList<>();
+        users.add(user);
+        users.add(user);
+        objectTo(users);
+
     }
 
 
@@ -62,12 +72,17 @@ public class MsgPackTest {
      * @author D瓜哥 · https://www.diguage.com/
      */
     public void objectTo(Object value) throws Throwable {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
 
-        MessagePack pack = new MessagePack();
-        pack.register(Date.class, DateTemplate.getInstance());
-        pack.register(BigDecimal.class, BigDecimalTemplate.getInstance());
-        pack.register(User.class);
+        TemplateRegistry registry = new TemplateRegistry(null);
+        registry.register(Date.class, DateTemplate.getInstance());
+        registry.register(BigDecimal.class, BigDecimalTemplate.getInstance());
+        registry.register(User.class);
+
+        AnyTemplate anyTemplate = new AnyTemplate(registry);
+        registry.register(List.class, new ListTemplate(anyTemplate));
+        registry.registerGeneric(List.class, new GenericCollectionTemplate(registry, ListTemplate.class));
+
+        MessagePack pack = new MyMessagePack(registry);
 
         byte[] result = pack.write(value);
 
