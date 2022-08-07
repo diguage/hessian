@@ -17,6 +17,17 @@ public class User {
     public User() {
     }
 
+    public User(Integer id, String name) {
+        this.id = id;
+        this.name = name;
+    }
+
+    public User(Integer id, String name, Date birthday) {
+        this.id = id;
+        this.name = name;
+        this.birthday = birthday;
+    }
+
     public User(Integer id, String name, Date birthday, BigDecimal money) {
         this.id = id;
         this.name = name;
@@ -54,5 +65,13 @@ public class User {
 
     public void setMoney(BigDecimal money) {
         this.money = money;
+    }
+
+    @Override
+    public String toString() {
+        return "User{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                '}';
     }
 }

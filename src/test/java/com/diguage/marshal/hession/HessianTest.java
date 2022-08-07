@@ -5,6 +5,7 @@ import com.caucho.hessian.io.Hessian2Input;
 import com.caucho.hessian.io.Hessian2Output;
 import com.caucho.hessian.io.SerializerFactory;
 import com.diguage.Car;
+import com.diguage.Customer;
 import com.diguage.User;
 import com.diguage.WebUser;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
@@ -25,28 +26,108 @@ import java.time.ZonedDateTime;
 import java.util.*;
 
 public class HessianTest {
-/**
- * 测试“混合”集合的序列化
- *
- * @author D瓜哥 · https://www.diguage.com
- */
-@Test
-public void testHybridList() throws Throwable {
-    BigDecimal money = new BigDecimal("1234.56789")
-            .setScale(2, BigDecimal.ROUND_HALF_UP);
-    int id = 4;
-    String name = "diguage";
-    Date date = new Date();
-    String site = "https://www.diguage.com";
-    User user = new User(id, name, date, money);
-    WebUser webUser = new WebUser(id, name, date, money, site);
-    Car car = new Car(name, id);
-    List<Object> hybridList = new ArrayList<>();
-    hybridList.add(webUser);
-    hybridList.add(user);
-    hybridList.add(car);
-    objectTo(hybridList);
-}
+
+    @Test
+    public void testIntScope() throws Throwable {
+//        for (int i = -2048; i < -16; i++) {
+//            intTo(i);
+//        }
+//        for (int i = 48; i < 2048; i++) {
+//            intTo(i);
+//        }
+
+//        for (int i = -262144; i < -2048; i++) {
+//            intTo(i);
+//        }
+
+        for (int i = 2048; i < 262144; i++) {
+            intTo(i);
+        }
+    }
+
+    @Test
+    public void testLongScope() throws Throwable {
+//        for (long i = -262144; i < -2048; i++) {
+//            longTo(i);
+//        }
+
+//        for (long i = 2048; i < 262144; i++) {
+//            longTo(i);
+//        }
+//        for (long i = -2048; i < -8; i++) {
+//            longTo(i);
+//        }
+        for (long i = 16; i < 2048; i++) {
+            longTo(i);
+        }
+    }
+
+    /**
+     * 客户序自定义列化测试
+     *
+     * @author D瓜哥 · https://www.diguage.com
+     */
+    @Test
+    public void testSerializerFactory() throws IOException {
+        int id = 1;
+        String name = "diguage";
+        User value = new User(id, name);
+
+        GuageSerializerFactory customSerializerFactory = new GuageSerializerFactory();
+
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        SerializerFactory serializerFactory = new SerializerFactory();
+        serializerFactory.setAllowNonSerializable(true);
+        serializerFactory.addFactory(customSerializerFactory);
+        Hessian2Output out = new Hessian2Output(bos);
+        out.setSerializerFactory(serializerFactory);
+        out.writeObject(value);
+        out.close();
+        byte[] result = bos.toByteArray();
+
+        System.out.println("\n== Object: " + value.getClass().getName() + "  ==");
+        String json = toJson(value);
+        System.out.println("== object: json length=" + json.length() + " ==");
+        System.out.println(json);
+        System.out.println("== object: hessian result ==");
+
+        printBytes(result);
+    }
+
+    /**
+     * 客户序自定义列化测试
+     *
+     * @author D瓜哥 · https://www.diguage.com
+     */
+    @Test
+    public void testCustom() throws Throwable {
+        Customer customer = new Customer();
+        customer.id = "456";
+        objectTo(customer);
+    }
+
+    /**
+     * 测试“混合”集合的序列化
+     *
+     * @author D瓜哥 · https://www.diguage.com
+     */
+    @Test
+    public void testHybridList() throws Throwable {
+        BigDecimal money = new BigDecimal("1234.56789").setScale(2, BigDecimal.ROUND_HALF_UP);
+        int id = 4;
+        String name = "diguage";
+        Date date = new Date();
+        String site = "https://www.diguage.com";
+        User user = new User(id, name, date, money);
+        WebUser webUser = new WebUser(id, name, date, money, site);
+        Car car = new Car(name, id);
+        List<Object> hybridList = new ArrayList<>();
+        hybridList.add(webUser);
+        hybridList.add(user);
+        hybridList.add(car);
+        hybridList.add(new Customer("5"));
+        objectTo(hybridList);
+    }
 
     /**
      * 测试重复字符串的序列化
@@ -69,8 +150,7 @@ public void testHybridList() throws Throwable {
      */
     @Test
     public void testInheritance() throws Throwable {
-        BigDecimal money = new BigDecimal("1234.56789")
-                .setScale(2, BigDecimal.ROUND_HALF_UP);
+        BigDecimal money = new BigDecimal("1234.56789").setScale(2, BigDecimal.ROUND_HALF_UP);
         int id = 4;
         String name = "diguage";
         Date date = new Date();
@@ -142,8 +222,7 @@ public void testHybridList() throws Throwable {
      */
     @Test
     public void testEnumIn() throws Throwable {
-        String base64Hessian = "QzAtY29tLmRpZ3VhZ2UubWFyc2hhb" +
-                "C5oZXNzaW9uLkhlc3NpYW5UZXN0JENvbG9ykQRuYW1lYAVHcmVlbg==";
+        String base64Hessian = "QzAtY29tLmRpZ3VhZ2UubWFyc2hhb" + "C5oZXNzaW9uLkhlc3NpYW5UZXN0JENvbG9ykQRuYW1lYAVHcmVlbg==";
         byte[] bytes = Base64.getDecoder().decode(base64Hessian);
         ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
         Hessian2Input hessian = getHessian2Input(bis);
@@ -155,11 +234,9 @@ public void testHybridList() throws Throwable {
      * @author D瓜哥 · https://www.diguage.com/
      */
     public enum Color {
-        Red("red", 0),
-        // 测试序列化时，去掉这行代码的注释
+        Red("red", 0), // 测试序列化时，去掉这行代码的注释
         // 测试反序列化时，将这行代码注释掉
-        Green("green", 1),
-        Blue("blue", 2);
+        Green("green", 1), Blue("blue", 2);
 
         private String colorName;
         private int colorCode;
@@ -372,6 +449,7 @@ public void testHybridList() throws Throwable {
         byte[] result = bos.toByteArray();
 
         System.out.println("\n== int: " + value + " ==");
+        System.out.println("== int: " + Integer.toHexString(value) + " ==");
         System.out.println("== int: " + getBinaryString(value) + " ==");
         printBytes(result);
     }
@@ -426,6 +504,7 @@ public void testHybridList() throws Throwable {
         byte[] result = bos.toByteArray();
 
         System.out.println("\n== long: " + value + " ==");
+        System.out.println("== long: " + Long.toHexString(value) + " ==");
         System.out.println("== long: " + getBinaryString(value) + " ==");
         printBytes(result);
     }
@@ -798,8 +877,7 @@ public void testHybridList() throws Throwable {
             System.out.println("== Generic: " + ele.get().getClass().getName() + "  ==");
         }
         if (value instanceof Map && !((Map) value).isEmpty()) {
-            Optional<? extends Map.Entry<?, ?>> optional =
-                    ((Map<?, ?>) value).entrySet().stream().findFirst();
+            Optional<? extends Map.Entry<?, ?>> optional = ((Map<?, ?>) value).entrySet().stream().findFirst();
             Map.Entry<?, ?> entry = optional.get();
             Object key = entry.getKey();
             Object val = entry.getValue();
@@ -1149,14 +1227,11 @@ list       ::= x55 type value* 'Z'   # 可变长度链表，类似 List
             System.out.println("...... " + result.length);
         } else if (result.length > 0 && (result[0] == 'C' // class def
                 // List
-                || result[0] == 0x55 || result[0] == 'V'
-                || result[0] == 0x57 || result[0] == 0x58
-                || (0x70 <= result[0] && result[0] <= ((byte) 0x7F))
+                || result[0] == 0x55 || result[0] == 'V' || result[0] == 0x57 || result[0] == 0x58 || (0x70 <= result[0] && result[0] <= ((byte) 0x7F))
                 // Map
                 || result[0] == 'M' || result[0] == 'H'
                 // object
-                || result[0] == 'O'
-                || (0x60 <= result[0] && result[0] <= ((byte) 0x6F)))) {
+                || result[0] == 'O' || (0x60 <= result[0] && result[0] <= ((byte) 0x6F)))) {
             int min = 0;
             int max = result.length;
             System.out.println(".... " + min + " ~ " + max + " ....");
